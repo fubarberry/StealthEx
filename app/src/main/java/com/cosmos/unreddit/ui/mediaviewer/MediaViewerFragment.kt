@@ -43,6 +43,19 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import android.content.Intent
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
+import com.cosmos.unreddit.util.LinkUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okio.buffer
+import okio.sink
+import java.io.File
+import java.io.IOException
 
 @AndroidEntryPoint
 class MediaViewerFragment : FullscreenBottomSheetFragment() {
@@ -109,6 +122,7 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
         bindViewModel()
         binding.run {
             buttonDownload.setOnClickListener { requestMediaDownload() }
+            buttonShare.setOnClickListener { showShareDialog() }
             infoRetry.setActionClickListener { retry() }
         }
     }
@@ -315,6 +329,119 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
                 R.string.toast_download_started,
                 Toast.LENGTH_SHORT
             ).show()
+        }
+    }
+
+    private fun showShareDialog() {
+        val options = arrayOf(
+            getString(R.string.share_option_file),
+            getString(R.string.share_option_link)
+        )
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.share_dialog_title)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> shareMediaFileDirectly()
+                    1 -> shareMediaLink()
+                }
+            }
+            .show()
+    }
+
+    private fun shareMediaLink() {
+        val page = viewerViewModel.selectedPage.value
+        val media = mediaAdapter.getItem(page) ?: return
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, media.url)
+        }
+        startActivity(Intent.createChooser(shareIntent, getString(R.string.share_dialog_title)))
+    }
+
+    private fun shareMediaFileDirectly() {
+        val page = viewerViewModel.selectedPage.value
+        val media = mediaAdapter.getItem(page) ?: return
+
+        binding.loadingCradle.isVisible = true
+
+        lifecycleScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val resolved = LinkUtil.resolveMediaUrls(media.url, Dispatchers.IO)
+                    val videoUrl = resolved.videoUrl
+                    val audioUrl = resolved.audioUrl
+
+                    val tempShareDir = File(requireContext().cacheDir, "temp_share")
+                    if (!tempShareDir.exists()) {
+                        tempShareDir.mkdirs()
+                    } else {
+                        tempShareDir.listFiles()?.forEach { it.delete() }
+                    }
+
+                    val extension = MimeTypeMap.getFileExtensionFromUrl(videoUrl).ifEmpty {
+                        if (audioUrl != null || media.type == GalleryMedia.Type.VIDEO) "mp4" else "jpg"
+                    }
+                    val finalFile = File(tempShareDir, "share_${System.currentTimeMillis()}.$extension")
+
+                    val client = OkHttpClient()
+                    if (audioUrl != null) {
+                        val tempVideoFile = File(tempShareDir, "temp_video.mp4")
+                        val tempAudioFile = File(tempShareDir, "temp_audio.mp4")
+                        try {
+                            val videoRequest = Request.Builder().url(videoUrl).header("User-Agent", LinkUtil.USER_AGENT).build()
+                            client.newCall(videoRequest).execute().use { response ->
+                                if (!response.isSuccessful) throw IOException("Failed to download video")
+                                tempVideoFile.sink().buffer().use { sink ->
+                                    response.body?.source()?.let { source -> sink.writeAll(source) }
+                                }
+                            }
+
+                            val audioRequest = Request.Builder().url(audioUrl).header("User-Agent", LinkUtil.USER_AGENT).build()
+                            client.newCall(audioRequest).execute().use { response ->
+                                if (!response.isSuccessful) throw IOException("Failed to download audio")
+                                tempAudioFile.sink().buffer().use { sink ->
+                                    response.body?.source()?.let { source -> sink.writeAll(source) }
+                                }
+                            }
+
+                            LinkUtil.muxAudioVideo(tempVideoFile, tempAudioFile, finalFile)
+                        } finally {
+                            tempVideoFile.delete()
+                            tempAudioFile.delete()
+                        }
+                    } else {
+                        val request = Request.Builder().url(videoUrl).header("User-Agent", LinkUtil.USER_AGENT).build()
+                        client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) throw IOException("Failed to download media")
+                            finalFile.sink().buffer().use { sink ->
+                                response.body?.source()?.let { source -> sink.writeAll(source) }
+                            }
+                        }
+                    }
+
+                    val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+                    finalFile to mimeType
+                }
+            }
+
+            binding.loadingCradle.isVisible = false
+
+            result.onSuccess { (file, mimeType) ->
+                runCatching {
+                    val authority = "${requireContext().packageName}.fileprovider"
+                    val uri = FileProvider.getUriForFile(requireContext(), authority, file)
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(Intent.createChooser(shareIntent, getString(R.string.share_dialog_title)))
+                }.onFailure {
+                    Toast.makeText(requireContext(), R.string.share_error_failed, Toast.LENGTH_SHORT).show()
+                }
+            }.onFailure {
+                Toast.makeText(requireContext(), R.string.share_error_failed, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

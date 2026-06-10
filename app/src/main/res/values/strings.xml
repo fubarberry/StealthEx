@@ -279,4 +279,9 @@
 
     <string name="snackbar_policy_disclaimer_message">%1$s might stop working soon</string>
     <string name="snackbar_policy_disclaimer_action">Learn More</string>
+
+    <string name="share_dialog_title">Share Media</string>
+    <string name="share_option_file">Share file (directly)</string>
+    <string name="share_option_link">Share link</string>
+    <string name="share_error_failed">Failed to share media</string>
 </resources>

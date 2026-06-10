@@ -89,6 +89,15 @@
             app:tint="@android:color/white"
             app:srcCompat="@drawable/ic_download"/>
 
+        <ImageButton
+            android:id="@+id/button_share"
+            android:layout_width="@dimen/media_button_size"
+            android:layout_height="@dimen/media_button_size"
+            android:layout_marginStart="@dimen/media_button_margin"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="@android:color/white"
+            app:srcCompat="@drawable/ic_share"/>
+
         <com.cosmos.unreddit.ui.common.widget.CheckableImageView
             android:id="@+id/button_mute"
             android:layout_width="@dimen/exoplayer_small_button_size"

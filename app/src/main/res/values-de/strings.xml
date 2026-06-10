@@ -142,4 +142,9 @@
     <string name="navigation_label_home">Startseite</string>
     <string name="navigation_label_subscriptions">Abonnements</string>
     <string name="navigation_label_settings">Einstellungen</string>
+
+    <string name="share_dialog_title">Medien teilen</string>
+    <string name="share_option_file">Datei teilen (direkt)</string>
+    <string name="share_option_link">Link teilen</string>
+    <string name="share_error_failed">Fehler beim Teilen der Medien</string>
 </resources>

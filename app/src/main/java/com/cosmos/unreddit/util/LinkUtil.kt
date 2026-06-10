@@ -5,6 +5,17 @@ import com.cosmos.unreddit.data.model.MediaType
 import com.cosmos.unreddit.data.remote.api.imgur.model.Image
 import com.cosmos.unreddit.util.extension.extension
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
+import java.nio.ByteBuffer
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineDispatcher
+import java.io.File
+import java.io.IOException
 
 object LinkUtil {
 
@@ -121,5 +132,133 @@ object LinkUtil {
 
     fun getPermalinkFromMediaUrl(link: String): String {
         return link.toHttpUrlOrNull()?.pathSegments?.lastOrNull() ?: link
+    }
+
+    data class ResolvedUrls(
+        val videoUrl: String,
+        val audioUrl: String?
+    )
+
+    suspend fun resolveMediaUrls(
+        url: String,
+        ioDispatcher: CoroutineDispatcher
+    ): ResolvedUrls {
+        if (url.contains("v.redd.it") && (url.contains(".mpd") || url.contains(".m3u8"))) {
+            val dashUrl = url.replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd")
+            val client = OkHttpClient()
+            val request = Request.Builder()
+                .url(dashUrl)
+                .header("User-Agent", LinkUtil.USER_AGENT)
+                .build()
+
+            val xml = withContext(ioDispatcher) {
+                runCatching {
+                    client.newCall(request).execute().use { response ->
+                        if (response.isSuccessful) response.body?.string() else null
+                    }
+                }.getOrNull()
+            }
+
+            if (!xml.isNullOrBlank()) {
+                val playlistName = if (url.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
+
+                val videoRegex = Regex("<Representation[^>]*?height=\"(\\d+)\"[^>]*?>[\\s\\S]*?<BaseURL>(.*?)</BaseURL>")
+                val videoMatches = videoRegex.findAll(xml).mapNotNull { match ->
+                    val resolution = match.groupValues[1].toIntOrNull()
+                    val filename = match.groupValues[2].trim()
+                    if (resolution != null && filename.isNotEmpty()) filename to resolution else null
+                }.toList()
+                val bestVideo = videoMatches.maxByOrNull { it.second }?.first
+
+                val audioRegex = Regex("<Representation[^>]*?mimeType=\"audio/mp4\"[^>]*?>[\\s\\S]*?<BaseURL>(.*?)</BaseURL>")
+                val audioMatches = audioRegex.findAll(xml).mapNotNull { match ->
+                    val filename = match.groupValues[1].trim()
+                    if (filename.isNotEmpty()) filename else null
+                }.toList()
+                val bestAudio = audioMatches.lastOrNull()
+
+                val resolvedVideoUrl = if (bestVideo != null) url.replace(playlistName, bestVideo) else url.replace(playlistName, "DASH_720.mp4")
+                val resolvedAudioUrl = if (bestAudio != null) url.replace(playlistName, bestAudio) else null
+
+                return ResolvedUrls(resolvedVideoUrl, resolvedAudioUrl)
+            }
+
+            val playlistName = if (url.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
+            return ResolvedUrls(url.replace(playlistName, "DASH_720.mp4"), null)
+        }
+
+        return ResolvedUrls(url, null)
+    }
+
+    fun muxAudioVideo(videoFile: File, audioFile: File, outputFile: File) {
+        val videoExtractor = MediaExtractor()
+        videoExtractor.setDataSource(videoFile.absolutePath)
+
+        val audioExtractor = MediaExtractor()
+        audioExtractor.setDataSource(audioFile.absolutePath)
+
+        val muxer = MediaMuxer(outputFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
+        var videoTrackIndex = -1
+        for (i in 0 until videoExtractor.trackCount) {
+            val format = videoExtractor.getTrackFormat(i)
+            val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+            if (mime.startsWith("video/")) {
+                videoExtractor.selectTrack(i)
+                videoTrackIndex = muxer.addTrack(format)
+                break
+            }
+        }
+
+        var audioTrackIndex = -1
+        for (i in 0 until audioExtractor.trackCount) {
+            val format = audioExtractor.getTrackFormat(i)
+            val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+            if (mime.startsWith("audio/")) {
+                audioExtractor.selectTrack(i)
+                audioTrackIndex = muxer.addTrack(format)
+                break
+            }
+        }
+
+        muxer.start()
+
+        val maxBufferSize = 1024 * 1024
+        val buffer = ByteBuffer.allocate(maxBufferSize)
+        val bufferInfo = MediaCodec.BufferInfo()
+
+        if (videoTrackIndex != -1) {
+            while (true) {
+                bufferInfo.offset = 0
+                bufferInfo.size = videoExtractor.readSampleData(buffer, 0)
+                if (bufferInfo.size < 0) {
+                    break
+                }
+                bufferInfo.presentationTimeUs = videoExtractor.sampleTime
+                bufferInfo.flags = videoExtractor.sampleFlags
+                muxer.writeSampleData(videoTrackIndex, buffer, bufferInfo)
+                videoExtractor.advance()
+            }
+        }
+
+        if (audioTrackIndex != -1) {
+            while (true) {
+                bufferInfo.offset = 0
+                bufferInfo.size = audioExtractor.readSampleData(buffer, 0)
+                if (bufferInfo.size < 0) {
+                    break
+                }
+                bufferInfo.presentationTimeUs = audioExtractor.sampleTime
+                bufferInfo.flags = audioExtractor.sampleFlags
+                muxer.writeSampleData(audioTrackIndex, buffer, bufferInfo)
+                audioExtractor.advance()
+            }
+        }
+
+        muxer.stop()
+        muxer.release()
+
+        videoExtractor.release()
+        audioExtractor.release()
     }
 }

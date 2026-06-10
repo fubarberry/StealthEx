@@ -111,4 +111,9 @@
      <string name="navigation_label_home">Inicio</string>
      <string name="navigation_label_subscriptions">Suscripciones</string>
      <string name="navigation_label_settings">Preferencias</string>
+
+    <string name="share_dialog_title">Compartir contenido</string>
+    <string name="share_option_file">Compartir archivo (directamente)</string>
+    <string name="share_option_link">Compartir enlace</string>
+    <string name="share_error_failed">Error al compartir contenido</string>
 </resources>

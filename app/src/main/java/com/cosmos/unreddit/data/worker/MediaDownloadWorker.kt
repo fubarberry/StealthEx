@@ -12,6 +12,11 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
+import java.nio.ByteBuffer
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -28,6 +33,7 @@ import com.cosmos.unreddit.data.receiver.DownloadManagerReceiver
 import com.cosmos.unreddit.di.DispatchersModule.IoDispatcher
 import com.cosmos.unreddit.util.DateUtil
 import com.cosmos.unreddit.util.IntentUtil
+import com.cosmos.unreddit.util.LinkUtil
 import com.cosmos.unreddit.util.extension.cancelAllWorkByTag
 import com.cosmos.unreddit.util.extension.cancelNotification
 import com.cosmos.unreddit.util.extension.createNotificationChannel
@@ -44,7 +50,9 @@ import okio.BufferedSink
 import okio.BufferedSource
 import okio.buffer
 import okio.sink
+import okio.source
 import java.io.File
+import java.io.IOException
 import java.util.Date
 
 @HiltWorker
@@ -63,10 +71,14 @@ class MediaDownloadWorker @AssistedInject constructor (
             )
 
     override suspend fun doWork(): Result {
-        val url = inputData.getString(KEY_URL) ?: return Result.failure()
+        val rawUrl = inputData.getString(KEY_URL) ?: return Result.failure()
         val type = inputData.getInt(KEY_TYPE, -1).let {
             GalleryMedia.Type.fromValue(it)
         } ?: return Result.failure()
+
+        val resolved = LinkUtil.resolveMediaUrls(rawUrl, ioDispatcher)
+        val url = resolved.videoUrl
+        val audioUrl = resolved.audioUrl
 
         val builder = createDownloadManagerBuilder()
             .setProgress(0, 0, true)
@@ -74,15 +86,64 @@ class MediaDownloadWorker @AssistedInject constructor (
 
         applicationContext.showNotification(NOTIFICATION_ID, builder.build())
 
-        val extension = MimeTypeMap.getFileExtensionFromUrl(url)
-        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: ""
-        val name = "$filename.$extension"
-
         val uri = withContext(NonCancellable) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                downloadMedia(url, type, name, mimeType)
+            if (audioUrl != null) {
+                val tempVideoFile = File(applicationContext.cacheDir, "temp_video_${System.currentTimeMillis()}.mp4")
+                val tempAudioFile = File(applicationContext.cacheDir, "temp_audio_${System.currentTimeMillis()}.mp4")
+                val tempMuxedFile = File(applicationContext.cacheDir, "temp_muxed_${System.currentTimeMillis()}.mp4")
+
+                val resultUri = runCatching {
+                    val client = OkHttpClient()
+
+                    val videoRequest = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", LinkUtil.USER_AGENT)
+                        .build()
+                    client.newCall(videoRequest).execute().use { response ->
+                        if (!response.isSuccessful) throw IOException("Failed to download video")
+                        tempVideoFile.sink().buffer().use { sink ->
+                            response.body?.source()?.let { source -> sink.writeAll(source) }
+                        }
+                    }
+
+                    val audioRequest = Request.Builder()
+                        .url(audioUrl)
+                        .header("User-Agent", LinkUtil.USER_AGENT)
+                        .build()
+                    client.newCall(audioRequest).execute().use { response ->
+                        if (!response.isSuccessful) throw IOException("Failed to download audio")
+                        tempAudioFile.sink().buffer().use { sink ->
+                            response.body?.source()?.let { source -> sink.writeAll(source) }
+                        }
+                    }
+
+                    LinkUtil.muxAudioVideo(tempVideoFile, tempAudioFile, tempMuxedFile)
+
+                    val finalName = "$filename.mp4"
+                    val finalMimeType = "video/mp4"
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        saveMuxedToMediaStore(tempMuxedFile, finalName, finalMimeType)
+                    } else {
+                        saveMuxedToLegacy(tempMuxedFile, finalName, finalMimeType)
+                    }
+                }.getOrNull()
+
+                tempVideoFile.delete()
+                tempAudioFile.delete()
+                tempMuxedFile.delete()
+
+                resultUri
             } else {
-                downloadMediaLegacy(url, type, name, mimeType)
+                val extension = MimeTypeMap.getFileExtensionFromUrl(url)
+                val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: ""
+                val name = "$filename.$extension"
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    downloadMedia(url, type, name, mimeType)
+                } else {
+                    downloadMediaLegacy(url, type, name, mimeType)
+                }
             }
         }
 
@@ -140,6 +201,63 @@ class MediaDownloadWorker @AssistedInject constructor (
         }
     }
 
+
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveMuxedToMediaStore(muxedFile: File, name: String, mimeType: String): Uri? {
+        val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+
+        val resolver = applicationContext.contentResolver
+        val uri = resolver.insert(collection, values) ?: return null
+
+        runCatching {
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                muxedFile.source().buffer().use { source ->
+                    outputStream.sink().buffer().use { sink ->
+                        sink.writeAll(source)
+                    }
+                }
+            }
+
+            values.clear()
+            values.put(MediaStore.Video.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+        }.onFailure {
+            resolver.delete(uri, null, null)
+            return null
+        }
+
+        return uri
+    }
+
+    private fun saveMuxedToLegacy(muxedFile: File, name: String, mimeType: String): Uri? {
+        val publicDirectory = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+        val file = File(publicDirectory, name)
+
+        runCatching {
+            muxedFile.source().buffer().use { source ->
+                file.sink().buffer().use { sink ->
+                    sink.writeAll(source)
+                }
+            }
+
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                arrayOf(file.absolutePath),
+                arrayOf(mimeType),
+                null
+            )
+            return Uri.fromFile(file)
+        }.getOrNull()
+
+        return null
+    }
+
     /**
      * @see <a href="https://commonsware.com/blog/2019/12/21/scoped-storage-stories-storing-mediastore.html">Scoped Storage Stories: Storing via MediaStore </a>
      */
@@ -163,7 +281,11 @@ class MediaDownloadWorker @AssistedInject constructor (
 
         withContext(ioDispatcher) {
             runCatching {
-                val response = OkHttpClient().newCall(Request.Builder().url(url).build()).execute()
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", LinkUtil.USER_AGENT)
+                    .build()
+                val response = OkHttpClient().newCall(request).execute()
 
                 if (response.isSuccessful) {
                     val values = ContentValues().apply {
@@ -229,7 +351,11 @@ class MediaDownloadWorker @AssistedInject constructor (
 
         withContext(ioDispatcher) {
             runCatching {
-                val response = OkHttpClient().newCall(Request.Builder().url(url).build()).execute()
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", LinkUtil.USER_AGENT)
+                    .build()
+                val response = OkHttpClient().newCall(request).execute()
 
                 if (response.isSuccessful) {
                     val sink = file.sink().buffer()
@@ -352,3 +478,4 @@ class MediaDownloadWorker @AssistedInject constructor (
         }
     }
 }
+
