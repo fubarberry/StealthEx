@@ -6,17 +6,17 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class Urls(
     @Json(name = "poster")
-    val poster: String,
+    val poster: String?,
 
     @Json(name = "thumbnail")
-    val thumbnail: String,
+    val thumbnail: String?,
 
     @Json(name = "vthumbnail")
-    val vthumbnail: String,
+    val vthumbnail: String?,
 
     @Json(name = "hd")
-    val hd: String,
+    val hd: String?,
 
     @Json(name = "sd")
-    val sd: String
+    val sd: String?
 )

@@ -1,7 +1,9 @@
 package com.cosmos.unreddit.scraper
 
+import com.cosmos.unreddit.data.remote.api.reddit.scraper.PostScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.PostSearchScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.UserSearchScraper
+import com.cosmos.unreddit.util.LinkUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.jsoup.Jsoup
@@ -48,5 +50,67 @@ class ScraperTest {
             println("  User: ${child}")
         }
         assertFalse("User search children list should not be empty", children.isEmpty())
+    }
+
+    @Test
+    fun testResolveMediaUrls() = runBlocking {
+        val oldResolved = com.cosmos.unreddit.util.LinkUtil.resolveMediaUrls(
+            "https://v.redd.it/mmpzzcrb15p91/DASHPlaylist.mpd",
+            Dispatchers.IO
+        )
+        assertNotNull(oldResolved)
+        println("Old resolved: $oldResolved")
+        org.junit.Assert.assertTrue(
+            "Old video URL should contain DASH_720.mp4",
+            oldResolved.videoUrl.contains("DASH_720.mp4")
+        )
+        org.junit.Assert.assertNotNull("Old audio URL should not be null", oldResolved.audioUrl)
+        org.junit.Assert.assertTrue(
+            "Old audio URL should contain DASH_audio.mp4",
+            oldResolved.audioUrl!!.contains("DASH_audio.mp4")
+        )
+
+        val newResolved = com.cosmos.unreddit.util.LinkUtil.resolveMediaUrls(
+            "https://v.redd.it/pvok1vrtqb6h1/DASHPlaylist.mpd",
+            Dispatchers.IO
+        )
+        assertNotNull(newResolved)
+        println("New resolved: $newResolved")
+        org.junit.Assert.assertTrue(
+            "New video URL should contain CMAF_720.mp4",
+            newResolved.videoUrl.contains("CMAF_720.mp4")
+        )
+        org.junit.Assert.assertNotNull("New audio URL should not be null", newResolved.audioUrl)
+        org.junit.Assert.assertTrue(
+            "New audio URL should contain CMAF_AUDIO_128.mp4",
+            newResolved.audioUrl!!.contains("CMAF_AUDIO_128.mp4")
+        )
+    }
+
+    @Test
+    fun testOldPostScraping() = runBlocking {
+        val html = fetchHtml("https://old.reddit.com/r/trashy/comments/xjuy16/trashy_woman_caught_in_4k_on_a_twitch_live_stream/")
+        val document = Jsoup.parse(html)
+        val scraper = PostScraper(Dispatchers.Unconfined)
+        val listing = scraper.scrap(html)
+        assertNotNull(listing)
+        val children = listing.data.children
+        assertFalse(children.isEmpty())
+        val post = children[0] as com.cosmos.unreddit.data.remote.api.reddit.model.PostChild
+        val postData = post.data
+        println("Scraped old post url: ${postData.url}")
+        println("Scraped old post mediaType: ${postData.mediaType}")
+        println("Scraped old post mediaUrl: ${postData.mediaUrl}")
+        assertNotNull(postData.media)
+        assertNotNull(postData.media?.redditVideoPreview)
+        val videoUrl = postData.media?.redditVideoPreview?.fallbackUrl
+        println("Scraped videoUrl: $videoUrl")
+        org.junit.Assert.assertTrue("videoUrl should contain DASHPlaylist.mpd", videoUrl!!.contains("DASHPlaylist.mpd"))
+
+        val resolved = LinkUtil.resolveMediaUrls(videoUrl, Dispatchers.IO)
+        println("Resolved urls from manifest: video=${resolved.videoUrl}, audio=${resolved.audioUrl}")
+        org.junit.Assert.assertTrue("Resolved videoUrl should contain DASH_720.mp4 or similar", resolved.videoUrl.contains("DASH_"))
+        org.junit.Assert.assertNotNull("Resolved audioUrl should not be null", resolved.audioUrl)
+        org.junit.Assert.assertTrue("Resolved audioUrl should contain DASH_audio.mp4", resolved.audioUrl!!.contains("DASH_audio.mp4"))
     }
 }

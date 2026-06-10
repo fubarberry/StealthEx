@@ -37,7 +37,13 @@ class ExoPlayerHelper(context: Context) {
     }
 
     fun getMediaItem(url: String): MediaItem {
-        return MediaItem.fromUri(url)
+        val builder = MediaItem.Builder().setUri(url)
+        if (url.contains(".mpd") || url.contains("DASHPlaylist.mpd")) {
+            builder.setMimeType("application/dash+xml")
+        } else if (url.contains(".m3u8") || url.contains("HLSPlaylist.m3u8")) {
+            builder.setMimeType("application/x-mpegURL")
+        }
+        return builder.build()
     }
 
     fun getMediaSource(url: String): MediaSource {

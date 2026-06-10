@@ -74,6 +74,7 @@ class MediaViewerViewModel
     }
 
     fun loadMedia(link: String, mediaType: MediaType, forceUpdate: Boolean = false) {
+        android.util.Log.d("StealthEx", "loadMedia: link=$link, mediaType=$mediaType, forceUpdate=$forceUpdate")
         if (_media.value !is Resource.Success || forceUpdate) {
             viewModelScope.launch {
                 val httpsLink = withContext(defaultDispatcher) { link.https }
@@ -94,14 +95,45 @@ class MediaViewerViewModel
             MediaType.IMGUR_GIF -> {
                 setMedia(GalleryMedia.singleton(Type.VIDEO, LinkUtil.getImgurVideo(link)))
             }
-            MediaType.REDDIT_GIF, MediaType.IMGUR_VIDEO, MediaType.VIDEO -> {
+            MediaType.REDDIT_GIF -> {
+                android.util.Log.d("StealthEx", "retrieveMedia REDDIT_GIF: link=$link")
+                if (link.contains(".mpd") || link.contains(".m3u8")) {
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                } else {
+                    val resolved = runCatching {
+                        LinkUtil.resolveMediaUrls(link, defaultDispatcher)
+                    }.getOrNull()
+                    android.util.Log.d("StealthEx", "REDDIT_GIF resolved urls: video=${resolved?.videoUrl}, audio=${resolved?.audioUrl}")
+                    if (resolved != null) {
+                        setMedia(GalleryMedia.singleton(Type.VIDEO, resolved.videoUrl, null))
+                    } else {
+                        setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                    }
+                }
+            }
+            MediaType.IMGUR_VIDEO, MediaType.VIDEO -> {
+                android.util.Log.d("StealthEx", "retrieveMedia IMGUR_VIDEO/VIDEO: link=$link")
                 setMedia(GalleryMedia.singleton(Type.VIDEO, link))
             }
             MediaType.REDDIT_VIDEO -> {
-                val sound = LinkUtil.getRedditSoundTrack(link).takeIf { it != link }
-                setMedia(
-                    GalleryMedia.singleton(Type.VIDEO, link, sound)
-                )
+                android.util.Log.d("StealthEx", "retrieveMedia REDDIT_VIDEO: link=$link")
+                if (link.contains(".mpd") || link.contains(".m3u8")) {
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                } else {
+                    val resolved = runCatching {
+                        LinkUtil.resolveMediaUrls(link, defaultDispatcher)
+                    }.getOrNull()
+                    android.util.Log.d("StealthEx", "REDDIT_VIDEO resolved urls: video=${resolved?.videoUrl}, audio=${resolved?.audioUrl}")
+                    if (resolved != null) {
+                        setMedia(GalleryMedia.singleton(Type.VIDEO, resolved.videoUrl, resolved.audioUrl))
+                    } else {
+                        val sound = LinkUtil.getRedditSoundTrack(link).takeIf { it != link }
+                        android.util.Log.d("StealthEx", "REDDIT_VIDEO fallback sound check: $sound")
+                        setMedia(
+                            GalleryMedia.singleton(Type.VIDEO, link, sound)
+                        )
+                    }
+                }
             }
             MediaType.GFYCAT -> {
                 val id = LinkUtil.getGfycatId(link)
@@ -122,16 +154,20 @@ class MediaViewerViewModel
             }
             MediaType.REDGIFS -> {
                 val id = LinkUtil.getGfycatId(link)
+                android.util.Log.d("StealthEx", "retrieveMedia REDGIFS: link=$link, id=$id")
 
                 redgifsRepository.getRedgifsGif(id)
                     .onStart {
                         _media.value = Resource.Loading()
                     }
                     .catch {
+                        android.util.Log.e("StealthEx", "REDGIFS API request failed for id $id", it)
                         catchError(it)
                     }
                     .map {
-                        GalleryMedia.singleton(Type.VIDEO, it.gif.urls.hd)
+                        val videoUrl = it.gif.urls.hd ?: it.gif.urls.sd ?: ""
+                        android.util.Log.d("StealthEx", "REDGIFS API resolved: hd=${it.gif.urls.hd}, sd=${it.gif.urls.sd}, final=$videoUrl")
+                        GalleryMedia.singleton(Type.VIDEO, videoUrl)
                     }
                     .collect {
                         setMedia(it)
@@ -197,6 +233,7 @@ class MediaViewerViewModel
     }
 
     private fun catchError(throwable: Throwable) {
+        android.util.Log.e("StealthEx", "catchError caught exception", throwable)
         when (throwable) {
             is IOException -> _media.value = Resource.Error(message = throwable.message)
             is HttpException -> _media.value = Resource.Error(throwable.code(), throwable.message())

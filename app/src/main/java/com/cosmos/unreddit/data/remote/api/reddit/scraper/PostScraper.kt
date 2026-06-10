@@ -204,23 +204,6 @@ class PostScraper(
     }
 
     private fun Element.toMedia(): Media? {
-        val source = selectFirst("source")
-        if (source != null && source.attr("type") == "video/mp4") {
-            val src = source.attr(Scraper.Selector.Attr.SRC)
-
-            return Media(
-                null,
-                null,
-                RedditVideoPreview(
-                    src,
-                    0,
-                    0,
-                    0,
-                    true
-                )
-            )
-        }
-
         val videoDiv = selectFirst("div[id^=video-]") ?: selectFirst("div[data-mpd-url]") ?: selectFirst("div[data-hls-url]")
         if (videoDiv != null) {
             val mpdUrl = videoDiv.attr("data-mpd-url").takeIf { it.isNotBlank() }
@@ -240,6 +223,23 @@ class PostScraper(
                     )
                 )
             }
+        }
+
+        val source = selectFirst("source")
+        if (source != null && source.attr("type") == "video/mp4") {
+            val src = source.attr(Scraper.Selector.Attr.SRC)
+
+            return Media(
+                null,
+                null,
+                RedditVideoPreview(
+                    src,
+                    0,
+                    0,
+                    0,
+                    true
+                )
+            )
         }
 
         return null

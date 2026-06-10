@@ -182,6 +182,7 @@ class MediaViewerAdapter(
     ) : RecyclerView.ViewHolder(binding.root), Player.Listener {
 
         fun bind(video: GalleryMedia) {
+            android.util.Log.d("StealthEx", "VideoViewHolder bind: video.url=${video.url}, video.sound=${video.sound}")
             val url = video.url.toHttpUrlOrNull() ?: return
 
             if (url.host.contains("redgifs", ignoreCase = true)) {
@@ -208,7 +209,9 @@ class MediaViewerAdapter(
                 // Add special listener for Reddit videos with audio
                 player.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
+                        android.util.Log.e("StealthEx", "VideoViewHolder MergedSource PlayerError: code=${error.errorCode}", error)
                         if (isErrorFromAudio(error)) {
+                            android.util.Log.w("StealthEx", "VideoViewHolder MergedSource error from audio, retrying without audio")
                             // Retry without audio if an error is thrown
                             player.setMediaItem(videoItem)
                             player.prepare()
@@ -286,6 +289,7 @@ class MediaViewerAdapter(
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            android.util.Log.e("StealthEx", "VideoViewHolder SingleSource PlayerError: code=${error.errorCode}", error)
             binding.infoRetry.show()
         }
 

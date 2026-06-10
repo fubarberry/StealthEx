@@ -129,6 +129,10 @@ data class PostData(
         get() = when {
             isSelf -> MediaType.NO_MEDIA
             isRedditGallery == true -> MediaType.REDDIT_GALLERY
+            domain == "gfycat.com" -> MediaType.GFYCAT
+            domain == "redgifs.com" -> MediaType.REDGIFS
+            domain == "streamable.com" -> MediaType.STREAMABLE
+
             isVideo -> {
                 if (media?.redditVideoPreview?.isGif == true) {
                     MediaType.REDDIT_GIF
@@ -154,10 +158,6 @@ data class PostData(
                     else -> MediaType.IMGUR_IMAGE
                 }
             }
-
-            domain == "gfycat.com" -> MediaType.GFYCAT
-            domain == "redgifs.com" -> MediaType.REDGIFS
-            domain == "streamable.com" -> MediaType.STREAMABLE
             domain == "v.redd.it" -> {
                 if (media?.redditVideoPreview?.isGif == true) {
                     MediaType.REDDIT_GIF

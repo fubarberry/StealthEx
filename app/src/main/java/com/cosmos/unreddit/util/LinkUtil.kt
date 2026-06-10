@@ -143,6 +143,7 @@ object LinkUtil {
         url: String,
         ioDispatcher: CoroutineDispatcher
     ): ResolvedUrls {
+        android.util.Log.d("StealthEx", "resolveMediaUrls: url=$url")
         if (url.contains("v.redd.it") && (url.contains(".mpd") || url.contains(".m3u8"))) {
             val dashUrl = url.replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd")
             val client = OkHttpClient()
@@ -156,6 +157,8 @@ object LinkUtil {
                     client.newCall(request).execute().use { response ->
                         if (response.isSuccessful) response.body?.string() else null
                     }
+                }.onFailure {
+                    android.util.Log.e("StealthEx", "resolveMediaUrls failed to fetch MPD manifest for $dashUrl", it)
                 }.getOrNull()
             }
 
@@ -170,23 +173,39 @@ object LinkUtil {
                 }.toList()
                 val bestVideo = videoMatches.maxByOrNull { it.second }?.first
 
-                val audioRegex = Regex("<Representation[^>]*?mimeType=\"audio/mp4\"[^>]*?>[\\s\\S]*?<BaseURL>(.*?)</BaseURL>")
-                val audioMatches = audioRegex.findAll(xml).mapNotNull { match ->
-                    val filename = match.groupValues[1].trim()
-                    if (filename.isNotEmpty()) filename else null
-                }.toList()
-                val bestAudio = audioMatches.lastOrNull()
+                val audioSetRegex = Regex("<AdaptationSet[^>]*?contentType=\"audio\"[^>]*?>([\\s\\S]*?)</AdaptationSet>")
+                val audioSetMatch = audioSetRegex.find(xml)
+                var bestAudio = if (audioSetMatch != null) {
+                    val audioSetContent = audioSetMatch.groupValues[1]
+                    val baseUrlRegex = Regex("<BaseURL>(.*?)</BaseURL>")
+                    baseUrlRegex.findAll(audioSetContent).map { it.groupValues[1].trim() }.lastOrNull()
+                } else {
+                    null
+                }
+
+                if (bestAudio == null) {
+                    val audioRegex = Regex("<Representation[^>]*?mimeType=\"audio/mp4\"[^>]*?>[\\s\\S]*?<BaseURL>(.*?)</BaseURL>")
+                    val audioMatches = audioRegex.findAll(xml).mapNotNull { match ->
+                        val filename = match.groupValues[1].trim()
+                        if (filename.isNotEmpty()) filename else null
+                    }.toList()
+                    bestAudio = audioMatches.lastOrNull()
+                }
 
                 val resolvedVideoUrl = if (bestVideo != null) url.replace(playlistName, bestVideo) else url.replace(playlistName, "DASH_720.mp4")
                 val resolvedAudioUrl = if (bestAudio != null) url.replace(playlistName, bestAudio) else null
 
+                android.util.Log.d("StealthEx", "resolveMediaUrls parsed: videoUrl=$resolvedVideoUrl, audioUrl=$resolvedAudioUrl")
                 return ResolvedUrls(resolvedVideoUrl, resolvedAudioUrl)
             }
 
             val playlistName = if (url.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
-            return ResolvedUrls(url.replace(playlistName, "DASH_720.mp4"), null)
+            val fallbackVideoUrl = url.replace(playlistName, "DASH_720.mp4")
+            android.util.Log.d("StealthEx", "resolveMediaUrls manifest blank fallback: videoUrl=$fallbackVideoUrl")
+            return ResolvedUrls(fallbackVideoUrl, null)
         }
 
+        android.util.Log.d("StealthEx", "resolveMediaUrls no-op for url: $url")
         return ResolvedUrls(url, null)
     }
 
