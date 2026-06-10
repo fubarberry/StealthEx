@@ -124,11 +124,15 @@ class PostScraper(
             ?.attr(Scraper.Selector.Attr.SRC)
             ?.toValidLink()
 
-        val expando = selectFirst("div.expando")
-            ?.attr(Selector.Attr.CACHED_HTML)
-            ?.run { Jsoup.parse(this) }
+        val expandoElement = selectFirst("div.expando")
+        val expandoHtml = expandoElement?.attr(Selector.Attr.CACHED_HTML)
+        val expando = if (!expandoHtml.isNullOrBlank()) {
+            Jsoup.parse(expandoHtml)
+        } else {
+            expandoElement
+        }
 
-        val media = when {
+        val media = expando?.toMedia() ?: when {
             isVideo -> {
                 Media(
                     null,
@@ -142,8 +146,6 @@ class PostScraper(
                     )
                 )
             }
-
-            expando != null -> expando.toMedia()
 
             else -> null
         }
@@ -201,31 +203,49 @@ class PostScraper(
         return PostChild(postData)
     }
 
-    private fun Document.toMedia(): Media? {
-        val source = selectFirst("source") ?: return null
+    private fun Element.toMedia(): Media? {
+        val source = selectFirst("source")
+        if (source != null && source.attr("type") == "video/mp4") {
+            val src = source.attr(Scraper.Selector.Attr.SRC)
 
-        return when (source.attr("type")) {
-            "video/mp4" -> {
-                val src = source.attr(Scraper.Selector.Attr.SRC)
+            return Media(
+                null,
+                null,
+                RedditVideoPreview(
+                    src,
+                    0,
+                    0,
+                    0,
+                    true
+                )
+            )
+        }
 
-                Media(
+        val videoDiv = selectFirst("div[id^=video-]") ?: selectFirst("div[data-mpd-url]") ?: selectFirst("div[data-hls-url]")
+        if (videoDiv != null) {
+            val mpdUrl = videoDiv.attr("data-mpd-url").takeIf { it.isNotBlank() }
+            val hlsUrl = videoDiv.attr("data-hls-url").takeIf { it.isNotBlank() }
+            val isGif = videoDiv.attr("data-is-gif").toBoolean()
+            val videoUrl = mpdUrl ?: hlsUrl
+            if (videoUrl != null) {
+                return Media(
                     null,
                     null,
                     RedditVideoPreview(
-                        src,
+                        videoUrl,
                         0,
                         0,
                         0,
-                        true
+                        isGif
                     )
                 )
             }
-
-            else -> null
         }
+
+        return null
     }
 
-    private fun Document.toGalleryData(): GalleryData {
+    private fun Element.toGalleryData(): GalleryData {
         val items = select("div.gallery-tile")
             .map {
                 val id = it.attr(Selector.Attr.MEDIA_ID)
@@ -235,7 +255,7 @@ class PostScraper(
         return GalleryData(items)
     }
 
-    private fun Document.toMediaMetadata(): MediaMetadata? {
+    private fun Element.toMediaMetadata(): MediaMetadata? {
         val items = select("div.gallery-preview")
             .map {
                 val id = it.attr(Scraper.Selector.Attr.ID).substringAfterLast("-")

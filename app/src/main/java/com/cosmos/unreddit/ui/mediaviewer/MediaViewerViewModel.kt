@@ -98,8 +98,9 @@ class MediaViewerViewModel
                 setMedia(GalleryMedia.singleton(Type.VIDEO, link))
             }
             MediaType.REDDIT_VIDEO -> {
+                val sound = LinkUtil.getRedditSoundTrack(link).takeIf { it != link }
                 setMedia(
-                    GalleryMedia.singleton(Type.VIDEO, link, LinkUtil.getRedditSoundTrack(link))
+                    GalleryMedia.singleton(Type.VIDEO, link, sound)
                 )
             }
             MediaType.GFYCAT -> {
