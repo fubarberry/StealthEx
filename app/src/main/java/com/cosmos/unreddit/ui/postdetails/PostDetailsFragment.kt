@@ -139,7 +139,7 @@ class PostDetailsFragment : BaseFragment(),
     }
 
     private fun initRecyclerView() {
-        val contentPreferences = runBlocking {
+        val contentPreferences = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             preferencesRepository.getContentPreferences().first()
         }
 

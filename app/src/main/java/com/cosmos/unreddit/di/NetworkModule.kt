@@ -207,7 +207,7 @@ object NetworkModule {
         preferencesRepository: PreferencesRepository
     ): TedditApi {
         // Get the saved instance unless it's empty, then take Teddit's default instance
-        val url = runBlocking {
+        val url = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             preferencesRepository
                 .getRedditSourceInstance()
                 .firstOrNull()

@@ -24,7 +24,7 @@ class CurrentSource @Inject constructor(
 
     private val mutex = Mutex()
 
-    private var source: BaseRedditSource = runBlocking {
+    private var source: BaseRedditSource = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
         val sourceValue = preferencesRepository.getRedditSource().first()
         getRedditSource(sourceValue)
     }

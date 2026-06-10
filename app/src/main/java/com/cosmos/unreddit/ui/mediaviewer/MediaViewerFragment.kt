@@ -171,7 +171,7 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
     }
 
     private fun initViewPager() {
-        val muteVideo = runBlocking { viewerViewModel.isVideoMuted.first() }
+        val muteVideo = runBlocking(kotlinx.coroutines.Dispatchers.IO) { viewerViewModel.isVideoMuted.first() }
 
         mediaAdapter = MediaViewerAdapter(
             requireContext(),

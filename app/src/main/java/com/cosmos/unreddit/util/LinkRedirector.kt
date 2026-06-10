@@ -22,12 +22,12 @@ class LinkRedirector @Inject constructor(
 
     private val mutex = Mutex()
 
-    var isPrivacyEnhancerOn: Boolean = runBlocking {
+    var isPrivacyEnhancerOn: Boolean = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
         preferencesRepository.getPrivacyEnhancerEnabled().first()
     }
         private set
 
-    private var toRedirect: Map<Regex, Redirect> = runBlocking {
+    private var toRedirect: Map<Regex, Redirect> = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
         preferencesRepository.getAllRedirects().first().getRedirects()
     }
 

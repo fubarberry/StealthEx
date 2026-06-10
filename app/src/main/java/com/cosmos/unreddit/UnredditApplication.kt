@@ -41,7 +41,7 @@ class UnredditApplication : Application(), ImageLoaderFactory, Configuration.Pro
     override fun onCreate() {
         super.onCreate()
 
-        runBlocking {
+        runBlocking(kotlinx.coroutines.Dispatchers.IO) {
             val nightMode = preferencesRepository.getNightMode().first()
             appTheme = nightMode
         }
