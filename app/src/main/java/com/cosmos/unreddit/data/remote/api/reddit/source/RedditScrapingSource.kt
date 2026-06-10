@@ -16,6 +16,8 @@ import com.cosmos.unreddit.data.remote.api.reddit.scraper.RedditScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.SubredditScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.SubredditSearchScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.UserScaper
+import com.cosmos.unreddit.data.remote.api.reddit.scraper.PostSearchScraper
+import com.cosmos.unreddit.data.remote.api.reddit.scraper.UserSearchScraper
 import com.cosmos.unreddit.di.DispatchersModule.IoDispatcher
 import com.cosmos.unreddit.di.DispatchersModule.MainImmediateDispatcher
 import com.cosmos.unreddit.di.NetworkModule.RedditScrap
@@ -62,8 +64,9 @@ class RedditScrapingSource @Inject constructor(
         timeSorting: TimeSorting?,
         after: String?
     ): Listing {
-        // TODO
-        return Listing("t3", ListingData(null, null, emptyList(), null, null))
+        return consentOver18(PostSearchScraper(ioDispatcher)) {
+            redditApi.searchInSubreddit(subreddit, query, sort, timeSorting, after)
+        }
     }
 
     override suspend fun getPost(permalink: String, limit: Int?, sort: Sort): List<Listing> {
@@ -119,8 +122,9 @@ class RedditScrapingSource @Inject constructor(
         timeSorting: TimeSorting?,
         after: String?
     ): Listing {
-        // TODO
-        return Listing("t3", ListingData(null, null, emptyList(), null, null))
+        return consentOver18(PostSearchScraper(ioDispatcher)) {
+            redditApi.searchPost(query, sort, timeSorting, after)
+        }
     }
 
     override suspend fun searchUser(
@@ -129,8 +133,9 @@ class RedditScrapingSource @Inject constructor(
         timeSorting: TimeSorting?,
         after: String?
     ): Listing {
-        // TODO
-        return Listing("t2", ListingData(null, null, emptyList(), null, null))
+        return consentOver18(UserSearchScraper(ioDispatcher)) {
+            redditApi.searchSubreddit(query, sort, timeSorting, after)
+        }
     }
 
     override suspend fun searchSubreddit(

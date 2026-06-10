@@ -32,6 +32,10 @@ open class PostListDataSource(
             Log.e("PostListDataSource", "Error", exception)
             LoadResult.Error(exception)
         } catch (exception: JsonDataException) {
+            Log.e("PostListDataSource", "Error", exception)
+            LoadResult.Error(exception)
+        } catch (exception: Exception) {
+            Log.e("PostListDataSource", "Error", exception)
             LoadResult.Error(exception)
         }
     }

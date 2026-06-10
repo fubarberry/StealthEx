@@ -47,6 +47,8 @@ class SmartPostListDataSource(
             LoadResult.Error(exception)
         } catch (exception: JsonDataException) {
             LoadResult.Error(exception)
+        } catch (exception: Exception) {
+            LoadResult.Error(exception)
         }
     }
 
