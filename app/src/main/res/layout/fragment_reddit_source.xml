@@ -16,15 +16,15 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent">
         <RadioButton
-            android:id="@+id/radio_reddit"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:text="@string/preference_reddit_source_reddit"/>
-        <RadioButton
             android:id="@+id/radio_reddit_scrap"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:text="@string/preference_reddit_source_reddit_scrap"/>
+        <RadioButton
+            android:id="@+id/radio_reddit"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="@string/preference_reddit_source_reddit"/>
         <RadioButton
             android:id="@+id/radio_teddit"
             android:layout_width="match_parent"

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Stealth</string>
+    <string name="app_name">StealthEx</string>
     <string name="app_version_name" translatable="false">Blackbird</string>
     <string name="app_description">An account-free, privacy-oriented, feature-rich Reddit client</string>
 
@@ -151,9 +151,9 @@
     <string name="preference_show_spoiler_preview">Show Spoiler preview</string>
 
     <string name="preference_reddit_source">Reddit Source</string>
-    <string name="preference_reddit_source_reddit">Reddit</string>
+    <string name="preference_reddit_source_reddit">Reddit (currently broken)</string>
     <string name="preference_reddit_source_reddit_scrap">Reddit (Web Scraping)</string>
-    <string name="preference_reddit_source_teddit">Teddit</string>
+    <string name="preference_reddit_source_teddit">Teddit (currently broken)</string>
 
     <string name="preference_backup">Import/Export</string>
 

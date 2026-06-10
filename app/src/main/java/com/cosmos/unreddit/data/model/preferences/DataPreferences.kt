@@ -19,7 +19,7 @@ data class DataPreferences(
         REDDIT(0), TEDDIT(1), REDDIT_SCRAP(2);
 
         companion object {
-            fun fromValue(value: Int): RedditSource = values().find { it.value == value } ?: REDDIT
+            fun fromValue(value: Int): RedditSource = values().find { it.value == value } ?: REDDIT_SCRAP
         }
     }
 }

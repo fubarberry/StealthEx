@@ -31,7 +31,7 @@ class RedditSourceDialogFragment : DialogFragment(), OnShowListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.run {
-            source = serializable(KEY_SOURCE) ?: DataPreferences.RedditSource.REDDIT
+            source = serializable(KEY_SOURCE) ?: DataPreferences.RedditSource.REDDIT_SCRAP
             instance = serializable(KEY_INSTANCE)
             instances = getStringArrayList(KEY_INSTANCES) ?: emptyList()
         }
