@@ -144,8 +144,13 @@ object LinkUtil {
         ioDispatcher: CoroutineDispatcher
     ): ResolvedUrls {
         android.util.Log.d("StealthEx", "resolveMediaUrls: url=$url")
-        if (url.contains("v.redd.it") && (url.contains(".mpd") || url.contains(".m3u8"))) {
-            val dashUrl = url.replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd")
+        var targetUrl = url
+        if (url.contains("v.redd.it") && !url.contains(".mpd") && !url.contains(".m3u8")) {
+            targetUrl = getRedditVideoMpdUrl(url) ?: url
+        }
+
+        if (targetUrl.contains("v.redd.it") && (targetUrl.contains(".mpd") || targetUrl.contains(".m3u8"))) {
+            val dashUrl = targetUrl.replace("HLSPlaylist.m3u8", "DASHPlaylist.mpd")
             val client = OkHttpClient()
             val request = Request.Builder()
                 .url(dashUrl)
@@ -163,7 +168,7 @@ object LinkUtil {
             }
 
             if (!xml.isNullOrBlank()) {
-                val playlistName = if (url.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
+                val playlistName = if (targetUrl.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
 
                 val videoRegex = Regex("<Representation[^>]*?height=\"(\\d+)\"[^>]*?>[\\s\\S]*?<BaseURL>(.*?)</BaseURL>")
                 val videoMatches = videoRegex.findAll(xml).mapNotNull { match ->
@@ -192,15 +197,15 @@ object LinkUtil {
                     bestAudio = audioMatches.lastOrNull()
                 }
 
-                val resolvedVideoUrl = if (bestVideo != null) url.replace(playlistName, bestVideo) else url.replace(playlistName, "DASH_720.mp4")
-                val resolvedAudioUrl = if (bestAudio != null) url.replace(playlistName, bestAudio) else null
+                val resolvedVideoUrl = if (bestVideo != null) targetUrl.replace(playlistName, bestVideo) else targetUrl.replace(playlistName, "DASH_720.mp4")
+                val resolvedAudioUrl = if (bestAudio != null) targetUrl.replace(playlistName, bestAudio) else null
 
                 android.util.Log.d("StealthEx", "resolveMediaUrls parsed: videoUrl=$resolvedVideoUrl, audioUrl=$resolvedAudioUrl")
                 return ResolvedUrls(resolvedVideoUrl, resolvedAudioUrl)
             }
 
-            val playlistName = if (url.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
-            val fallbackVideoUrl = url.replace(playlistName, "DASH_720.mp4")
+            val playlistName = if (targetUrl.contains(".mpd")) "DASHPlaylist.mpd" else "HLSPlaylist.m3u8"
+            val fallbackVideoUrl = targetUrl.replace(playlistName, "DASH_720.mp4")
             android.util.Log.d("StealthEx", "resolveMediaUrls manifest blank fallback: videoUrl=$fallbackVideoUrl")
             return ResolvedUrls(fallbackVideoUrl, null)
         }
@@ -279,5 +284,16 @@ object LinkUtil {
 
         videoExtractor.release()
         audioExtractor.release()
+    }
+
+    fun getRedditVideoMpdUrl(link: String): String? {
+        val httpUrl = link.toHttpUrlOrNull() ?: return null
+        if (!httpUrl.host.contains("v.redd.it")) return null
+        val videoId = httpUrl.pathSegments.firstOrNull() ?: return null
+        if (videoId.isBlank()) return null
+        return httpUrl.newBuilder()
+            .encodedPath("/$videoId/DASHPlaylist.mpd")
+            .build()
+            .toString()
     }
 }

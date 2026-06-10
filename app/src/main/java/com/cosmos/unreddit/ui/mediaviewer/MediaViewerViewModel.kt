@@ -78,7 +78,12 @@ class MediaViewerViewModel
         if (_media.value !is Resource.Success || forceUpdate) {
             viewModelScope.launch {
                 val httpsLink = withContext(defaultDispatcher) { link.https }
-                retrieveMedia(httpsLink, mediaType)
+                val normalizedLink = if (mediaType == MediaType.REDDIT_VIDEO || mediaType == MediaType.REDDIT_GIF) {
+                    LinkUtil.getRedditVideoMpdUrl(httpsLink) ?: httpsLink
+                } else {
+                    httpsLink
+                }
+                retrieveMedia(normalizedLink, mediaType)
             }
         }
     }
@@ -97,17 +102,23 @@ class MediaViewerViewModel
             }
             MediaType.REDDIT_GIF -> {
                 android.util.Log.d("StealthEx", "retrieveMedia REDDIT_GIF: link=$link")
-                if (link.contains(".mpd") || link.contains(".m3u8")) {
-                    setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                val targetLink = if (link.contains("v.redd.it") && !link.contains(".mpd") && !link.contains(".m3u8")) {
+                    LinkUtil.getRedditVideoMpdUrl(link) ?: link
+                } else {
+                    link
+                }
+                android.util.Log.d("StealthEx", "retrieveMedia REDDIT_GIF targeted: $targetLink")
+                if (targetLink.contains(".mpd") || targetLink.contains(".m3u8")) {
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, targetLink, null))
                 } else {
                     val resolved = runCatching {
-                        LinkUtil.resolveMediaUrls(link, defaultDispatcher)
+                        LinkUtil.resolveMediaUrls(targetLink, defaultDispatcher)
                     }.getOrNull()
                     android.util.Log.d("StealthEx", "REDDIT_GIF resolved urls: video=${resolved?.videoUrl}, audio=${resolved?.audioUrl}")
                     if (resolved != null) {
                         setMedia(GalleryMedia.singleton(Type.VIDEO, resolved.videoUrl, null))
                     } else {
-                        setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                        setMedia(GalleryMedia.singleton(Type.VIDEO, targetLink, null))
                     }
                 }
             }
@@ -117,20 +128,26 @@ class MediaViewerViewModel
             }
             MediaType.REDDIT_VIDEO -> {
                 android.util.Log.d("StealthEx", "retrieveMedia REDDIT_VIDEO: link=$link")
-                if (link.contains(".mpd") || link.contains(".m3u8")) {
-                    setMedia(GalleryMedia.singleton(Type.VIDEO, link, null))
+                val targetLink = if (link.contains("v.redd.it") && !link.contains(".mpd") && !link.contains(".m3u8")) {
+                    LinkUtil.getRedditVideoMpdUrl(link) ?: link
+                } else {
+                    link
+                }
+                android.util.Log.d("StealthEx", "retrieveMedia REDDIT_VIDEO targeted: $targetLink")
+                if (targetLink.contains(".mpd") || targetLink.contains(".m3u8")) {
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, targetLink, null))
                 } else {
                     val resolved = runCatching {
-                        LinkUtil.resolveMediaUrls(link, defaultDispatcher)
+                        LinkUtil.resolveMediaUrls(targetLink, defaultDispatcher)
                     }.getOrNull()
                     android.util.Log.d("StealthEx", "REDDIT_VIDEO resolved urls: video=${resolved?.videoUrl}, audio=${resolved?.audioUrl}")
                     if (resolved != null) {
                         setMedia(GalleryMedia.singleton(Type.VIDEO, resolved.videoUrl, resolved.audioUrl))
                     } else {
-                        val sound = LinkUtil.getRedditSoundTrack(link).takeIf { it != link }
+                        val sound = LinkUtil.getRedditSoundTrack(targetLink).takeIf { it != targetLink }
                         android.util.Log.d("StealthEx", "REDDIT_VIDEO fallback sound check: $sound")
                         setMedia(
-                            GalleryMedia.singleton(Type.VIDEO, link, sound)
+                            GalleryMedia.singleton(Type.VIDEO, targetLink, sound)
                         )
                     }
                 }

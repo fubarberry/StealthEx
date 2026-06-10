@@ -85,6 +85,22 @@ class ScraperTest {
             "New audio URL should contain CMAF_AUDIO_128.mp4",
             newResolved.audioUrl!!.contains("CMAF_AUDIO_128.mp4")
         )
+
+        val rawShortResolved = com.cosmos.unreddit.util.LinkUtil.resolveMediaUrls(
+            "https://v.redd.it/mmpzzcrb15p91",
+            Dispatchers.IO
+        )
+        assertNotNull(rawShortResolved)
+        println("Raw short resolved: $rawShortResolved")
+        org.junit.Assert.assertTrue(
+            "Raw short video URL should contain DASH_720.mp4",
+            rawShortResolved.videoUrl.contains("DASH_720.mp4")
+        )
+        org.junit.Assert.assertNotNull("Raw short audio URL should not be null", rawShortResolved.audioUrl)
+        org.junit.Assert.assertTrue(
+            "Raw short audio URL should contain DASH_audio.mp4",
+            rawShortResolved.audioUrl!!.contains("DASH_audio.mp4")
+        )
     }
 
     @Test
@@ -113,4 +129,11 @@ class ScraperTest {
         org.junit.Assert.assertNotNull("Resolved audioUrl should not be null", resolved.audioUrl)
         org.junit.Assert.assertTrue("Resolved audioUrl should contain DASH_audio.mp4", resolved.audioUrl!!.contains("DASH_audio.mp4"))
     }
+
+    @Test
+    fun testGetRedditVideoMpdUrl() {
+        val mpdUrl = LinkUtil.getRedditVideoMpdUrl("https://v.redd.it/mmpzzcrb15p91")
+        org.junit.Assert.assertEquals("https://v.redd.it/mmpzzcrb15p91/DASHPlaylist.mpd", mpdUrl)
+    }
 }
+
