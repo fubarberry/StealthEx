@@ -15,6 +15,7 @@ import com.cosmos.unreddit.databinding.IncludePostMetricsBinding
 import com.cosmos.unreddit.databinding.ItemPostImageBinding
 import com.cosmos.unreddit.databinding.ItemPostLinkBinding
 import com.cosmos.unreddit.databinding.ItemPostTextBinding
+import com.cosmos.unreddit.databinding.ItemPostCompactBinding
 import com.cosmos.unreddit.ui.common.widget.AwardView
 import com.cosmos.unreddit.util.ClickableMovementMethod
 import com.cosmos.unreddit.util.extension.load
@@ -62,7 +63,10 @@ abstract class PostViewHolder(
             this.post = postEntity
             textPostAuthor.text = postEntity.author
             textSubreddit.text = postEntity.subreddit
+            textPostDate.visibility = View.VISIBLE
+            textDomain.visibility = View.GONE
         }
+        postMetricsBinding.textPostDateCompact.visibility = View.GONE
 
         title.apply {
             text = postEntity.title
@@ -293,6 +297,235 @@ abstract class PostViewHolder(
             ) {
                 error(R.drawable.preview_link_fallback)
                 fallback(R.drawable.preview_link_fallback)
+            }
+        }
+    }
+
+    class CompactImagePostViewHolder(
+        private val binding: ItemPostCompactBinding,
+        listener: PostListAdapter.Listener
+    ) : PostViewHolder(
+        binding.root,
+        binding.includePostInfo,
+        binding.includePostMetrics,
+        binding.includePostFlairs,
+        listener
+    ) {
+
+        init {
+            binding.imagePostPreview.setOnClickListener {
+                listener.onMediaClick(bindingAdapterPosition)
+            }
+        }
+
+        fun bind(
+            postEntity: PostEntity,
+            contentPreferences: ContentPreferences,
+            leftHandedMode: Boolean
+        ) {
+            super.bind(postEntity, contentPreferences)
+            binding.includePostInfo.textPostDate.visibility = View.GONE
+            binding.includePostInfo.textDomain.visibility = View.VISIBLE
+            binding.includePostMetrics.textPostDateCompact.visibility = View.VISIBLE
+
+            binding.includePostFlairs.hideDomain = true
+            binding.includePostFlairs.textDomain.visibility = View.GONE
+            binding.includePostInfo.textPostAuthor.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            binding.includePostInfo.textSubreddit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+
+            val paramsTitle = binding.textPostTitle.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            val paramsPreview = binding.imagePostPreview.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+
+            if (leftHandedMode) {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToStart = binding.textPostTitle.id
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.startToEnd = binding.imagePostPreview.id
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            } else {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.startToEnd = binding.textPostTitle.id
+                paramsPreview.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsTitle.endToStart = binding.imagePostPreview.id
+                paramsTitle.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            binding.textPostTitle.layoutParams = paramsTitle
+            binding.imagePostPreview.layoutParams = paramsPreview
+
+            binding.imagePostPreview.load(
+                postEntity.preview,
+                !postEntity.shouldShowPreview(contentPreferences)
+            ) {
+                error(R.drawable.preview_image_fallback)
+                fallback(R.drawable.preview_image_fallback)
+            }
+
+            binding.buttonTypeIndicator.apply {
+                when (postEntity.mediaType) {
+                    MediaType.REDDIT_GALLERY, MediaType.IMGUR_ALBUM, MediaType.IMGUR_GALLERY -> {
+                        visibility = View.VISIBLE
+                        setIcon(R.drawable.ic_gallery)
+                    }
+                    else -> {
+                        visibility = View.GONE
+                    }
+                }
+            }
+        }
+    }
+
+    class CompactVideoPostViewHolder(
+        private val binding: ItemPostCompactBinding,
+        listener: PostListAdapter.Listener
+    ) : PostViewHolder(
+        binding.root,
+        binding.includePostInfo,
+        binding.includePostMetrics,
+        binding.includePostFlairs,
+        listener
+    ) {
+
+        init {
+            binding.imagePostPreview.setOnClickListener {
+                listener.onMediaClick(bindingAdapterPosition)
+            }
+        }
+
+        fun bind(
+            postEntity: PostEntity,
+            contentPreferences: ContentPreferences,
+            leftHandedMode: Boolean
+        ) {
+            super.bind(postEntity, contentPreferences)
+            binding.includePostInfo.textPostDate.visibility = View.GONE
+            binding.includePostInfo.textDomain.visibility = View.VISIBLE
+            binding.includePostMetrics.textPostDateCompact.visibility = View.VISIBLE
+
+            binding.includePostFlairs.hideDomain = true
+            binding.includePostFlairs.textDomain.visibility = View.GONE
+            binding.includePostInfo.textPostAuthor.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            binding.includePostInfo.textSubreddit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+
+            val paramsTitle = binding.textPostTitle.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            val paramsPreview = binding.imagePostPreview.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+
+            if (leftHandedMode) {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToStart = binding.textPostTitle.id
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.startToEnd = binding.imagePostPreview.id
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            } else {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.startToEnd = binding.textPostTitle.id
+                paramsPreview.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsTitle.endToStart = binding.imagePostPreview.id
+                paramsTitle.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            binding.textPostTitle.layoutParams = paramsTitle
+            binding.imagePostPreview.layoutParams = paramsPreview
+
+            binding.imagePostPreview.load(
+                postEntity.preview,
+                !postEntity.shouldShowPreview(contentPreferences)
+            ) {
+                error(R.drawable.preview_video_fallback)
+                fallback(R.drawable.preview_video_fallback)
+            }
+
+            binding.buttonTypeIndicator.apply {
+                visibility = View.VISIBLE
+                setIcon(R.drawable.ic_play)
+            }
+        }
+    }
+
+    class CompactLinkPostViewHolder(
+        private val binding: ItemPostCompactBinding,
+        listener: PostListAdapter.Listener
+    ) : PostViewHolder(
+        binding.root,
+        binding.includePostInfo,
+        binding.includePostMetrics,
+        binding.includePostFlairs,
+        listener
+    ) {
+
+        init {
+            binding.imagePostPreview.setOnClickListener {
+                listener.onMediaClick(bindingAdapterPosition)
+            }
+        }
+
+        fun bind(
+            postEntity: PostEntity,
+            contentPreferences: ContentPreferences,
+            leftHandedMode: Boolean
+        ) {
+            super.bind(postEntity, contentPreferences)
+            binding.includePostInfo.textPostDate.visibility = View.GONE
+            binding.includePostInfo.textDomain.visibility = View.VISIBLE
+            binding.includePostMetrics.textPostDateCompact.visibility = View.VISIBLE
+
+            binding.includePostFlairs.hideDomain = true
+            binding.includePostFlairs.textDomain.visibility = View.GONE
+            binding.includePostInfo.textPostAuthor.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            binding.includePostInfo.textSubreddit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+
+            val paramsTitle = binding.textPostTitle.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            val paramsPreview = binding.imagePostPreview.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+
+            if (leftHandedMode) {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToStart = binding.textPostTitle.id
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.startToEnd = binding.imagePostPreview.id
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            } else {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.startToEnd = binding.textPostTitle.id
+                paramsPreview.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsTitle.endToStart = binding.imagePostPreview.id
+                paramsTitle.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            binding.textPostTitle.layoutParams = paramsTitle
+            binding.imagePostPreview.layoutParams = paramsPreview
+
+            binding.imagePostPreview.load(
+                postEntity.preview,
+                !postEntity.shouldShowPreview(contentPreferences)
+            ) {
+                error(R.drawable.preview_link_fallback)
+                fallback(R.drawable.preview_link_fallback)
+            }
+
+            binding.buttonTypeIndicator.apply {
+                visibility = View.VISIBLE
+                setIcon(R.drawable.ic_link)
             }
         }
     }

@@ -139,6 +139,21 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             }
 
             launch {
+                viewModel.useCompactLayout.collect { useCompact ->
+                    postListAdapter.useCompactLayout = useCompact
+                    bindingContent.layoutToggleCard.setIcon(
+                        if (useCompact) R.drawable.ic_layout_large else R.drawable.ic_layout_compact
+                    )
+                }
+            }
+
+            launch {
+                viewModel.leftHandedMode.collect { leftHandedMode ->
+                    postListAdapter.leftHandedMode = leftHandedMode
+                }
+            }
+
+            launch {
                 viewModel.searchData.collect {
                     bindingContent.loadingState.infoRetry.hide()
                 }
@@ -260,6 +275,9 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             moreCard.setOnClickListener { showMenu() }
             subredditName.setOnClickListener { scrollToTop() }
             subredditImage.setOnClickListener { scrollToTop() }
+            layoutToggleCard.setOnClickListener {
+                viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)
+            }
         }
     }
 

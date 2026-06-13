@@ -15,7 +15,9 @@ import androidx.core.view.updatePadding
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.paging.LoadState
+import kotlinx.coroutines.flow.first
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.UiViewModel
@@ -148,6 +150,30 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             }
 
             launch {
+                viewModel.useCompactLayout.collect { useCompact ->
+                    postListAdapter.useCompactLayout = useCompact
+                    binding.appBar.layoutToggleCard.setIcon(
+                        if (useCompact) R.drawable.ic_layout_large else R.drawable.ic_layout_compact
+                    )
+                }
+            }
+
+            launch {
+                viewModel.leftHandedMode.collect { leftHandedMode ->
+                    postListAdapter.leftHandedMode = leftHandedMode
+                }
+            }
+
+            launch {
+                viewModel.usePopularFeed.collect { usePopular ->
+                    binding.appBar.feedToggleCard.apply {
+                        setIcon(if (usePopular) R.drawable.ic_person_check else R.drawable.ic_hot)
+                        contentDescription = getString(if (usePopular) R.string.feed_subscribed else R.string.feed_popular)
+                    }
+                }
+            }
+
+            launch {
                 viewModel.profiles.collect {
                     profileAdapter.submitList(it)
                 }
@@ -274,6 +300,18 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             sortCard.setOnClickListener { showSortDialog() }
             profileImage.setOnClickListener { openProfileDrawer() }
             title.setOnClickListener { scrollToTop() }
+            layoutToggleCard.setOnClickListener {
+                viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)
+            }
+            feedToggleCard.setOnClickListener {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    val current = viewModel.usePopularFeed.first()
+                    val next = !current
+                    viewModel.setUsePopularFeed(next)
+                    val message = if (next) R.string.feed_popular else R.string.feed_subscribed
+                    android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         binding.appBarLayout.addOnOffsetChangedListener(onOffsetChangedListener)
     }

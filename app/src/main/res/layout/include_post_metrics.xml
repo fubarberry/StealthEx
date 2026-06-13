@@ -5,6 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <data>
+        <import type="com.cosmos.unreddit.util.DateUtil"/>
         <variable
             name="post"
             type="com.cosmos.unreddit.data.model.db.PostEntity" />
@@ -89,6 +90,21 @@
             app:layout_constraintEnd_toStartOf="@id/button_more"
             android:layout_marginEnd="@dimen/post_padding_horizontal"
             app:srcCompat="@drawable/save" />
+
+        <TextView
+            android:id="@+id/text_post_date_compact"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintTop_toTopOf="@id/image_vote_icon"
+            app:layout_constraintBottom_toBottomOf="@id/image_vote_icon"
+            app:layout_constraintStart_toEndOf="@id/text_post_comments"
+            app:layout_constraintEnd_toStartOf="@id/button_save"
+            android:textColor="@color/text_color_secondary"
+            android:textSize="11sp"
+            android:visibility="gone"
+            android:text="@{DateUtil.getTimeDifference(context, post.created)}"
+            tools:visibility="visible"
+            tools:text="5h"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>

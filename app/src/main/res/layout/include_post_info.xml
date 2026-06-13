@@ -23,6 +23,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             android:textAppearance="@style/TextAppearancePostAuthor"
+            android:textSize="12sp"
             android:textColor="@color/colorPrimary"
             tools:text="author"/>
 
@@ -31,7 +32,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintStart_toEndOf="@id/text_post_author"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/text_post_author"
             app:layout_constraintBottom_toBottomOf="@id/text_post_author"
             app:layout_constrainedWidth="true"
@@ -45,10 +45,13 @@
             android:id="@+id/text_subreddit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/text_post_author"
+            app:layout_constraintStart_toEndOf="@id/post_flair"
+            app:layout_constraintTop_toTopOf="@id/text_post_author"
+            app:layout_constraintBottom_toBottomOf="@id/text_post_author"
+            android:layout_marginStart="8dp"
             android:textColor="@null"
             android:textAppearance="@style/TextAppearancePostInfo"
+            android:textSize="12sp"
             tools:text="/r/reddit" />
 
         <TextView
@@ -56,7 +59,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintBottom_toBottomOf="@id/text_subreddit"
+            app:layout_constraintTop_toTopOf="@id/text_post_author"
+            app:layout_constraintBottom_toBottomOf="@id/text_post_author"
             android:textColor="@null"
             android:textAppearance="@style/TextAppearancePostInfo"
             android:text="@{DateUtil.getTimeDifference(context, post.created)}"
@@ -74,7 +78,7 @@
             android:layout_height="wrap_content"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toStartOf="@id/text_crosspost_subreddit"
-            app:layout_constraintTop_toBottomOf="@id/text_subreddit"
+            app:layout_constraintTop_toBottomOf="@id/text_post_author"
             app:layout_constraintHorizontal_chainStyle="packed"
             app:layout_constraintHorizontal_bias="0"
             android:textColor="@color/colorPrimary"
@@ -104,6 +108,20 @@
             android:textColor="@null"
             android:textAppearance="@style/TextAppearancePostInfo"
             tools:text="/u/user"/>
+
+        <TextView
+            android:id="@+id/text_domain"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/text_post_author"
+            app:layout_constraintBottom_toBottomOf="@id/text_post_author"
+            android:textColor="@color/text_color_secondary"
+            android:textAppearance="@style/TextAppearancePostDomain"
+            android:text="@{post.domain}"
+            android:visibility="gone"
+            tools:text="reddit.com"
+            tools:visibility="visible"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </layout>

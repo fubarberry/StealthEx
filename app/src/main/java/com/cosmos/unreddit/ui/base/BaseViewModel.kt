@@ -18,9 +18,18 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 
 open class BaseViewModel(
-    preferencesRepository: PreferencesRepository,
+    private val preferencesRepository: PreferencesRepository,
     private val postListRepository: PostListRepository
 ) : ViewModel() {
+
+    val leftHandedMode: Flow<Boolean> = preferencesRepository.getLeftHandedMode()
+    val useCompactLayout: Flow<Boolean> = preferencesRepository.getUseCompactLayout()
+
+    fun setUseCompactLayout(useCompactLayout: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setUseCompactLayout(useCompactLayout)
+        }
+    }
 
     val currentProfile: SharedFlow<Profile> = preferencesRepository.getCurrentProfile().map {
         postListRepository.getProfile(it)

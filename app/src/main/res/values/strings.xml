@@ -284,4 +284,7 @@
     <string name="share_option_file">Share file (directly)</string>
     <string name="share_option_link">Share link</string>
     <string name="share_error_failed">Failed to share media</string>
+
+    <string name="feed_subscribed">Subscribed</string>
+    <string name="feed_popular">Popular</string>
 </resources>

@@ -12,6 +12,7 @@ import com.cosmos.unreddit.data.repository.PostListRepository
 import com.cosmos.unreddit.databinding.ItemPostImageBinding
 import com.cosmos.unreddit.databinding.ItemPostLinkBinding
 import com.cosmos.unreddit.databinding.ItemPostTextBinding
+import com.cosmos.unreddit.databinding.ItemPostCompactBinding
 import com.cosmos.unreddit.ui.common.widget.RedditView
 import com.cosmos.unreddit.util.ClickableMovementMethod
 
@@ -76,6 +77,22 @@ class PostListAdapter(
             if (field.showNsfwPreview != value.showNsfwPreview ||
                 field.showSpoilerPreview != value.showSpoilerPreview
             ) {
+                field = value
+                notifyDataSetChanged()
+            }
+        }
+
+    var useCompactLayout: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                notifyDataSetChanged()
+            }
+        }
+
+    var leftHandedMode: Boolean = false
+        set(value) {
+            if (field != value) {
                 field = value
                 notifyDataSetChanged()
             }
@@ -147,12 +164,37 @@ class PostListAdapter(
                 ItemPostLinkBinding.inflate(inflater, parent, false),
                 listener
             )
+            // Compact Image post
+            VIEW_TYPE_COMPACT_IMAGE -> PostViewHolder.CompactImagePostViewHolder(
+                ItemPostCompactBinding.inflate(inflater, parent, false),
+                listener
+            )
+            // Compact Video post
+            VIEW_TYPE_COMPACT_VIDEO -> PostViewHolder.CompactVideoPostViewHolder(
+                ItemPostCompactBinding.inflate(inflater, parent, false),
+                listener
+            )
+            // Compact Link post
+            VIEW_TYPE_COMPACT_LINK -> PostViewHolder.CompactLinkPostViewHolder(
+                ItemPostCompactBinding.inflate(inflater, parent, false),
+                listener
+            )
             else -> throw IllegalArgumentException("Unknown type $viewType")
         }
     }
 
     override fun getItemViewType(position: Int): Int {
-        return getItem(position)?.type?.value ?: -1
+        val item = getItem(position) ?: return -1
+        return if (useCompactLayout) {
+            when (item.type) {
+                PostType.IMAGE -> VIEW_TYPE_COMPACT_IMAGE
+                PostType.VIDEO -> VIEW_TYPE_COMPACT_VIDEO
+                PostType.LINK -> VIEW_TYPE_COMPACT_LINK
+                else -> item.type.value
+            }
+        } else {
+            item.type.value
+        }
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
@@ -179,6 +221,24 @@ class PostListAdapter(
                 item,
                 contentPreferences
             )
+            // Compact Image post
+            VIEW_TYPE_COMPACT_IMAGE -> (holder as PostViewHolder.CompactImagePostViewHolder).bind(
+                item,
+                contentPreferences,
+                leftHandedMode
+            )
+            // Compact Video post
+            VIEW_TYPE_COMPACT_VIDEO -> (holder as PostViewHolder.CompactVideoPostViewHolder).bind(
+                item,
+                contentPreferences,
+                leftHandedMode
+            )
+            // Compact Link post
+            VIEW_TYPE_COMPACT_LINK -> (holder as PostViewHolder.CompactLinkPostViewHolder).bind(
+                item,
+                contentPreferences,
+                leftHandedMode
+            )
             else -> throw IllegalArgumentException("Unknown type")
         }
     }
@@ -192,7 +252,15 @@ class PostListAdapter(
             super.onBindViewHolder(holder, position, payloads)
         } else {
             val item = getItem(position) ?: return
-            (holder as? PostViewHolder)?.update(item)
+            if (holder is PostViewHolder.CompactImagePostViewHolder) {
+                holder.bind(item, contentPreferences, leftHandedMode)
+            } else if (holder is PostViewHolder.CompactVideoPostViewHolder) {
+                holder.bind(item, contentPreferences, leftHandedMode)
+            } else if (holder is PostViewHolder.CompactLinkPostViewHolder) {
+                holder.bind(item, contentPreferences, leftHandedMode)
+            } else {
+                (holder as? PostViewHolder)?.update(item)
+            }
         }
     }
 
@@ -202,6 +270,10 @@ class PostListAdapter(
     }
 
     companion object {
+        private const val VIEW_TYPE_COMPACT_IMAGE = 11
+        private const val VIEW_TYPE_COMPACT_VIDEO = 12
+        private const val VIEW_TYPE_COMPACT_LINK = 13
+
         private val POST_COMPARATOR = object : DiffUtil.ItemCallback<PostEntity>() {
             override fun areItemsTheSame(oldItem: PostEntity, newItem: PostEntity): Boolean {
                 return oldItem.id == newItem.id

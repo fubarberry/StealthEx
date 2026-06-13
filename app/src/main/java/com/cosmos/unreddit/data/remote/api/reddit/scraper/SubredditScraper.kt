@@ -14,34 +14,61 @@ class SubredditScraper(
     override suspend fun scrapDocument(document: Document): Child {
         val title = document.selectFirst(Scraper.Selector.Tag.TITLE)?.text().orEmpty()
 
-        val redditName = document.selectFirst("h1.redditname")
-            ?.selectFirst(Scraper.Selector.Tag.A)
+        val shredditHeader = document.selectFirst("shreddit-subreddit-header")
 
-        val name = redditName?.text().orEmpty()
-        val link = redditName?.attr(Scraper.Selector.Attr.HREF).orEmpty()
+        val name: String
+        val link: String
+        val communityIcon: String
+        val subscribers: Int?
+        val activeUsers: Int?
+        val descriptionHtml: String?
+        val cleanTitle: String
 
-        val communityIcon = document.selectFirst("img[id=header-img]")
-            ?.attr(Scraper.Selector.Attr.SRC)
-            ?.toValidLink()
-            .orEmpty()
+        if (shredditHeader != null) {
+            val prefName = shredditHeader.attr("prefixed-name").removePrefix("r/").removePrefix("/")
+            name = prefName
+            link = "/r/$prefName/"
+            cleanTitle = shredditHeader.attr("display-name")
 
-        val subscribers = document.selectFirst("span.subscribers")
-            ?.selectFirst(Selector.NUMBER)
-            ?.toInt()
+            val iconImg = shredditHeader.selectFirst("img")
+            communityIcon = iconImg?.attr("src")?.toValidLink().orEmpty()
 
-        val activeUsers = document.selectFirst("p.users-online")
-            ?.selectFirst(Selector.NUMBER)
-            ?.toInt()
+            subscribers = shredditHeader.attr("subscribers").toIntOrNull()
+            activeUsers = shredditHeader.attr("active").toIntOrNull()
 
-        val descriptionHtml = document.selectFirst("div.titlebox")
-            ?.selectFirst(Selector.MD)
-            ?.outerHtml()
+            val desc = shredditHeader.attr("description")
+            descriptionHtml = if (desc.isNotEmpty()) "<div class=\"md\"><p>$desc</p></div>" else null
+        } else {
+            cleanTitle = title
+            val redditName = document.selectFirst("h1.redditname")
+                ?.selectFirst(Scraper.Selector.Tag.A)
+
+            name = redditName?.text().orEmpty()
+            link = redditName?.attr(Scraper.Selector.Attr.HREF).orEmpty()
+
+            communityIcon = document.selectFirst("img[id=header-img]")
+                ?.attr(Scraper.Selector.Attr.SRC)
+                ?.toValidLink()
+                .orEmpty()
+
+            subscribers = document.selectFirst("span.subscribers")
+                ?.selectFirst(Selector.NUMBER)
+                ?.toInt()
+
+            activeUsers = document.selectFirst("p.users-online")
+                ?.selectFirst(Selector.NUMBER)
+                ?.toInt()
+
+            descriptionHtml = document.selectFirst("div.titlebox")
+                ?.selectFirst(Selector.MD)
+                ?.outerHtml()
+        }
 
         val data = AboutData(
             null,
             name,
             null,
-            title,
+            cleanTitle,
             null,
             activeUsers,
             null,

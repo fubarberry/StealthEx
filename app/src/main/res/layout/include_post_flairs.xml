@@ -9,6 +9,9 @@
         <variable
             name="post"
             type="com.cosmos.unreddit.data.model.db.PostEntity" />
+        <variable
+            name="hideDomain"
+            type="boolean" />
     </data>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -107,7 +110,7 @@
             android:textColor="@null"
             android:textAppearance="@style/TextAppearancePostDomain"
             android:text="@{post.domain}"
-            android:visibility="@{!post.isSelf ? View.VISIBLE : View.GONE}"
+            android:visibility="@{!hideDomain &amp;&amp; !post.isSelf ? View.VISIBLE : View.GONE}"
             tools:text="reddit.com"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

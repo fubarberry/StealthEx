@@ -51,6 +51,34 @@ class PreferencesRepository @Inject constructor(
         )
     }
 
+    suspend fun setUseCompactLayout(useCompactLayout: Boolean) {
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT,
+            useCompactLayout
+        )
+    }
+
+    fun getUseCompactLayout(defaultValue: Boolean = false): Flow<Boolean> {
+        return preferencesDatastore.getValue(
+            UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT,
+            defaultValue
+        )
+    }
+
+    suspend fun setUsePopularFeed(usePopularFeed: Boolean) {
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.USE_POPULAR_FEED,
+            usePopularFeed
+        )
+    }
+
+    fun getUsePopularFeed(defaultValue: Boolean = false): Flow<Boolean> {
+        return preferencesDatastore.getValue(
+            UiPreferences.PreferencesKeys.USE_POPULAR_FEED,
+            defaultValue
+        )
+    }
+
     //endregion
 
     //region Content

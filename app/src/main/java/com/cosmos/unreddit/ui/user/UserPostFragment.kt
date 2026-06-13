@@ -38,6 +38,18 @@ class UserPostFragment : PagingListFragment<PostListAdapter, PostEntity>() {
             }
 
             launch {
+                viewModel.useCompactLayout.collect { useCompact ->
+                    adapter.useCompactLayout = useCompact
+                }
+            }
+
+            launch {
+                viewModel.leftHandedMode.collect { leftHandedMode ->
+                    adapter.leftHandedMode = leftHandedMode
+                }
+            }
+
+            launch {
                 viewModel.lastRefreshPost.collect {
                     setRefreshTime(it)
                 }

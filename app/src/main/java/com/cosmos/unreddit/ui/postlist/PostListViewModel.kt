@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -51,16 +52,31 @@ class PostListViewModel
     private val _sorting: MutableStateFlow<Sorting> = MutableStateFlow(DEFAULT_SORTING)
     val sorting: StateFlow<Sorting> = _sorting
 
-    val subreddit: Flow<List<String>> = subscriptionsNames
-        .distinctUntilChanged()
-        .map { subscriptions ->
-            if (subscriptions.isNotEmpty()) {
-                subscriptions.shuffled()
-            } else {
-                listOf(DEFAULT_SUBREDDIT)
-            }
+    val usePopularFeed: Flow<Boolean> = preferencesRepository.getUsePopularFeed()
+
+    fun setUsePopularFeed(usePopularFeed: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setUsePopularFeed(usePopularFeed)
         }
-        .flowOn(defaultDispatcher)
+    }
+
+    fun togglePopularFeed() {
+        viewModelScope.launch {
+            val current = preferencesRepository.getUsePopularFeed().first()
+            preferencesRepository.setUsePopularFeed(!current)
+        }
+    }
+
+    val subreddit: Flow<List<String>> = combine(
+        subscriptionsNames.distinctUntilChanged(),
+        usePopularFeed
+    ) { subscriptions, popularFeed ->
+        if (popularFeed || subscriptions.isEmpty()) {
+            listOf(DEFAULT_SUBREDDIT)
+        } else {
+            subscriptions.shuffled()
+        }
+    }.flowOn(defaultDispatcher)
 
     val postDataFlow: Flow<PagingData<PostEntity>>
 

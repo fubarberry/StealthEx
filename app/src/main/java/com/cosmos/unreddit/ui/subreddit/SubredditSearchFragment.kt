@@ -113,6 +113,18 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
             }
 
             launch {
+                viewModel.useCompactLayout.collect { useCompact ->
+                    postListAdapter.useCompactLayout = useCompact
+                }
+            }
+
+            launch {
+                viewModel.leftHandedMode.collect { leftHandedMode ->
+                    postListAdapter.leftHandedMode = leftHandedMode
+                }
+            }
+
+            launch {
                 viewModel.sorting.collect {
                     binding.appBar.sortIcon.setSorting(it)
                 }
