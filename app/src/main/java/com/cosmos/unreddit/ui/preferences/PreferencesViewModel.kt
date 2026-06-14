@@ -47,6 +47,10 @@ class PreferencesViewModel @Inject constructor(
         .getPrivacyEnhancerEnabled()
         .shareIn(viewModelScope, SharingStarted.WhileSubscribed(), 1)
 
+    val commentImageMode: SharedFlow<Int> = preferencesRepository
+        .getCommentImageMode()
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(), 1)
+
     var tedditInstances: List<String> = emptyList()
         private set
 
@@ -103,6 +107,12 @@ class PreferencesViewModel @Inject constructor(
             preferencesRepository.setRedditSource(source)
             currentSource.setRedditSource(source)
             instance?.let { preferencesRepository.setRedditSourceInstance(it) }
+        }
+    }
+
+    fun setCommentImageMode(mode: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setCommentImageMode(mode)
         }
     }
 }

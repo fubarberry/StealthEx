@@ -115,6 +115,10 @@ sealed class Comment {
 
         @Ignore
         @IgnoredOnParcel
+        var isMediaExpanded: Boolean? = null
+
+        @Ignore
+        @IgnoredOnParcel
         var visibleReplyCount: Int = replies.size
 
         val hasReplies: Boolean

@@ -6,6 +6,8 @@ import com.cosmos.unreddit.data.model.Block.TableBlock
 import com.cosmos.unreddit.data.model.Block.TextBlock
 import com.cosmos.unreddit.data.model.HtmlBlock
 import com.cosmos.unreddit.data.model.RedditText
+import com.cosmos.unreddit.data.model.MediaType
+import com.cosmos.unreddit.util.LinkUtil
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -28,7 +30,7 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
             val tables = LinkedList<String>()
             val codes = LinkedList<String>()
 
-            var newHtml = html
+            var newHtml = preprocessCommentHtml(html)
 
             newHtml = newHtml.replace(TABLE_REGEX) {
                 tables.add(it.groupValues[0])
@@ -116,6 +118,57 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
 
     private fun getTextBlock(html: String): TextBlock {
         return TextBlock(fromHtml(html))
+    }
+
+    internal fun preprocessCommentHtml(html: String): String {
+        val doc = Jsoup.parseBodyFragment(html)
+
+        // 1. Process Giphy links first
+        val giphyLinks = doc.select("a[href*=giphy.com]")
+        for (a in giphyLinks) {
+            val href = a.attr("href")
+            val id = LinkUtil.getGiphyId(href)
+            if (id != null) {
+                a.text("<gif>")
+                a.attr("href", LinkUtil.getGiphyGifUrl(id))
+            }
+        }
+
+        // 2. Find all image/gif links
+        val allLinks = doc.select("a")
+        val imageOrGifLinks = mutableListOf<org.jsoup.nodes.Element>()
+        for (a in allLinks) {
+            val href = a.attr("href")
+            val text = a.text().trim()
+            val wrapsImage = a.select("img").isNotEmpty()
+
+            val isImageLink = LinkUtil.getLinkType(href) in listOf(
+                MediaType.IMAGE,
+                MediaType.IMGUR_IMAGE,
+                MediaType.IMGUR_GIF,
+                MediaType.REDDIT_GIF
+            ) || href.contains("giphy.com")
+
+            val isGiphyOrRedditImage = (text == "<image>" || text == "<gif>" || wrapsImage) && isImageLink
+
+            if (isGiphyOrRedditImage) {
+                if (text != "<image>" && text != "<gif>") {
+                    if (href.contains(".gif") || href.contains("giphy.com")) {
+                        a.text("<gif>")
+                    } else {
+                        a.text("<image>")
+                    }
+                }
+                imageOrGifLinks.add(a)
+            }
+        }
+
+        // 3. For each image/gif link, append "<expand all>" link after it
+        for (a in imageOrGifLinks) {
+            a.after(" <a href=\"expand_all:\">&lt;expand all&gt;</a>")
+        }
+
+        return doc.body().html()
     }
 
     private fun fromHtml(html: String): CharSequence {

@@ -143,6 +143,15 @@ class PostDetailsFragment : BaseFragment(),
             preferencesRepository.getContentPreferences().first()
         }
 
+        val commentImageMode = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            preferencesRepository.getCommentImageMode().first()
+        }
+        val isExpandedDefault = when (commentImageMode) {
+            1 -> true
+            2 -> com.cosmos.unreddit.util.Util.isWifiConnected(requireContext())
+            else -> false
+        }
+
         postAdapter = PostAdapter(contentPreferences, this, this)
         commentAdapter = CommentAdapter(
             requireContext(),
@@ -150,6 +159,7 @@ class PostDetailsFragment : BaseFragment(),
             defaultDispatcher,
             repository,
             commentMapper,
+            isExpandedDefault,
             this
         ) {
             CommentMenuFragment.show(childFragmentManager, it, CommentMenuFragment.MenuType.DETAILS)

@@ -90,8 +90,20 @@ object LinkUtil {
 
         val httpUrl = link.toHttpUrlOrNull() ?: return MediaType.NO_MEDIA
         val domain = httpUrl.host
-        val extension by lazy { link.extension }
-        val mime by lazy { MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "" }
+        val lastSegment = httpUrl.pathSegments.lastOrNull() ?: ""
+        val extension = lastSegment.substringAfterLast('.', "").lowercase()
+        var mime = try {
+            MimeTypeMap.getSingleton()?.getMimeTypeFromExtension(extension) ?: ""
+        } catch (e: Exception) {
+            ""
+        }
+        if (mime.isEmpty()) {
+            mime = when (extension) {
+                "png", "jpg", "jpeg", "gif", "webp" -> "image/$extension"
+                "mp4", "webm", "mkv", "avi", "gifv" -> "video/$extension"
+                else -> ""
+            }
+        }
 
         return when {
             domain.matches(REDDIT_LINK) -> {
@@ -121,6 +133,8 @@ object LinkUtil {
             domain.matches(REDGIFS_LINK) -> MediaType.REDGIFS
 
             domain.matches(STREAMABLE_LINK) -> MediaType.STREAMABLE
+
+            domain.contains("giphy.com") -> MediaType.IMAGE
 
             mime.startsWith("image") -> MediaType.IMAGE
 
@@ -295,5 +309,30 @@ object LinkUtil {
             .encodedPath("/$videoId/DASHPlaylist.mpd")
             .build()
             .toString()
+     }
+
+    fun getGiphyId(link: String): String? {
+        val httpUrl = link.toHttpUrlOrNull() ?: return null
+        if (!httpUrl.host.contains("giphy.com")) return null
+        if (httpUrl.pathSegments.getOrNull(0) == "gifs") {
+            val lastSegment = httpUrl.pathSegments.getOrNull(1) ?: return null
+            return lastSegment.substringAfterLast("-")
+        }
+        if (httpUrl.pathSegments.getOrNull(0) == "media") {
+            return httpUrl.pathSegments.getOrNull(1)
+        }
+        if (httpUrl.host == "i.giphy.com") {
+            val segment = httpUrl.pathSegments.getOrNull(0) ?: return null
+            return if (segment == "media") {
+                httpUrl.pathSegments.getOrNull(1)
+            } else {
+                segment.substringBefore(".")
+            }
+        }
+        return null
+    }
+
+    fun getGiphyGifUrl(id: String): String {
+        return "https://i.giphy.com/$id.gif"
     }
 }

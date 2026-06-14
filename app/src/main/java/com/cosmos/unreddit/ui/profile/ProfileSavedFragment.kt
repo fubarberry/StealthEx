@@ -17,11 +17,16 @@ import com.cosmos.unreddit.ui.commentmenu.CommentMenuFragment
 import com.cosmos.unreddit.ui.common.fragment.ListFragment
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
 import com.cosmos.unreddit.ui.user.UserCommentsAdapter
+import com.cosmos.unreddit.data.repository.PreferencesRepository
+import com.cosmos.unreddit.util.Util
 import com.cosmos.unreddit.util.extension.currentNavigationFragment
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @AndroidEntryPoint
 class ProfileSavedFragment : ListFragment<ProfileSavedAdapter>(),
@@ -90,7 +95,18 @@ class ProfileSavedFragment : ListFragment<ProfileSavedAdapter>(),
         )
     }
 
+    @Inject
+    lateinit var preferencesRepository: PreferencesRepository
+
     override fun createAdapter(): ProfileSavedAdapter {
-        return ProfileSavedAdapter(requireContext(), this, this, this)
+        val commentImageMode = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            preferencesRepository.getCommentImageMode().first()
+        }
+        val isExpandedDefault = when (commentImageMode) {
+            1 -> true
+            2 -> Util.isWifiConnected(requireContext())
+            else -> false
+        }
+        return ProfileSavedAdapter(requireContext(), isExpandedDefault, this, this, this)
     }
 }

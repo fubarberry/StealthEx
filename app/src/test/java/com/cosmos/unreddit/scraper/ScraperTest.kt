@@ -4,6 +4,7 @@ import com.cosmos.unreddit.data.remote.api.reddit.scraper.PostScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.PostSearchScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.UserSearchScraper
 import com.cosmos.unreddit.util.LinkUtil
+import com.cosmos.unreddit.data.model.MediaType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.jsoup.Jsoup
@@ -149,6 +150,33 @@ class ScraperTest {
     fun testGetRedditVideoMpdUrl() {
         val mpdUrl = LinkUtil.getRedditVideoMpdUrl("https://v.redd.it/mmpzzcrb15p91")
         org.junit.Assert.assertEquals("https://v.redd.it/mmpzzcrb15p91/DASHPlaylist.mpd", mpdUrl)
+    }
+
+    @Test
+    fun testLinkClassificationAndPreprocessing() = runBlocking {
+        // Test LinkUtil classification
+        val redditsaveLink = "https://redditsave.com/info?url=https://i.redd.it/something.png"
+        val directImageLink = "https://example.com/foo.png"
+        val directGifLink = "https://example.com/foo.gif"
+        
+        org.junit.Assert.assertEquals(MediaType.LINK, LinkUtil.getLinkType(redditsaveLink))
+        org.junit.Assert.assertEquals(MediaType.IMAGE, LinkUtil.getLinkType(directImageLink))
+        org.junit.Assert.assertEquals(MediaType.IMAGE, LinkUtil.getLinkType(directGifLink))
+
+        // Test HtmlParser preprocessing
+        val htmlParser = com.cosmos.unreddit.util.HtmlParser(Dispatchers.Unconfined)
+        
+        // 1. Redditsave link
+        val html1 = """<p>Here is a <a href="$redditsaveLink">Redditsave</a> link.</p>"""
+        val preprocessed1 = htmlParser.preprocessCommentHtml(html1)
+        org.junit.Assert.assertTrue("Redditsave link text should be preserved", preprocessed1.contains("Redditsave"))
+        org.junit.Assert.assertFalse("Redditsave should not have an expand all link", preprocessed1.contains("expand_all:"))
+
+        // 2. Image link
+        val html2 = """<p>Here is a <a href="$directImageLink"><img src="$directImageLink" /></a> image.</p>"""
+        val preprocessed2 = htmlParser.preprocessCommentHtml(html2)
+        org.junit.Assert.assertTrue("Direct image link should show image placeholders", preprocessed2.contains("&lt;image&gt;"))
+        org.junit.Assert.assertTrue("Direct image link should have an expand all link", preprocessed2.contains("expand_all:"))
     }
 }
 

@@ -19,6 +19,7 @@ import com.cosmos.unreddit.util.extension.blurText
 
 class UserCommentsAdapter(
     context: Context,
+    private val isExpandedDefault: Boolean,
     private val onLinkClickListener: RedditView.OnLinkClickListener? = null,
     private val commentClickListener: CommentClickListener
 ) : PagingDataAdapter<Comment, UserCommentsAdapter.CommentViewHolder>(COMMENT_COMPARATOR) {
@@ -48,6 +49,10 @@ class UserCommentsAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(comment: CommentEntity) {
+            if (comment.isMediaExpanded == null) {
+                comment.isMediaExpanded = isExpandedDefault
+            }
+
             binding.comment = comment
             binding.includeItemComment.comment = comment
 
@@ -100,8 +105,29 @@ class UserCommentsAdapter(
             }
 
             with(binding.includeItemComment.commentBody) {
-                setText(comment.body)
-                setOnLinkClickListener(onLinkClickListener)
+                setText(comment.body, comment.isMediaExpanded ?: false)
+                onExpandAllListener = {
+                    snapshot().forEach {
+                        (it as? CommentEntity)?.isMediaExpanded = true
+                    }
+                    notifyDataSetChanged()
+                }
+                setOnLinkClickListener(object : RedditView.OnLinkClickListener {
+                    override fun onLinkClick(link: String) {
+                        if (link == "expand_all:") {
+                            snapshot().forEach {
+                                (it as? CommentEntity)?.isMediaExpanded = true
+                            }
+                            notifyDataSetChanged()
+                        } else {
+                            onLinkClickListener?.onLinkClick(link)
+                        }
+                    }
+
+                    override fun onLinkLongClick(link: String) {
+                        onLinkClickListener?.onLinkLongClick(link)
+                    }
+                })
                 setOnClickListener { commentClickListener.onClick(comment) }
                 setOnLongClickListener {
                     commentClickListener.onLongClick(comment)

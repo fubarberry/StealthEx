@@ -54,6 +54,7 @@ class PreferencesFragment : PreferenceFragmentCompat() {
     private var privacyEnhancerPreference: Preference? = null
     private var aboutPreference: Preference? = null
     private var policyDisclaimerPreference: Preference? = null
+    private var commentImageModePreference: Preference? = null
 
     private val navOptions: NavOptions by lazy { getNavOptions() }
 
@@ -135,6 +136,15 @@ class PreferencesFragment : PreferenceFragmentCompat() {
         )?.apply {
             setOnPreferenceChangeListener { _, newValue ->
                 viewModel.setShowSpoilerPreview(newValue as Boolean)
+                true
+            }
+        }
+
+        commentImageModePreference = findPreference<Preference>("comment_image_mode")?.apply {
+            setOnPreferenceClickListener {
+                viewModel.commentImageMode.latest?.let { mode ->
+                    showCommentImageModeDialog(mode)
+                }
                 true
             }
         }
@@ -255,6 +265,14 @@ class PreferencesFragment : PreferenceFragmentCompat() {
             }
 
             launch {
+                viewModel.commentImageMode.collect { mode ->
+                    val commentImageModeArray =
+                        resources.getStringArray(R.array.pref_comment_image_mode_labels)
+                    commentImageModePreference?.summary = commentImageModeArray.getOrNull(mode)
+                }
+            }
+
+            launch {
                 viewModel.redditSource.collect { value ->
                     DataPreferences.RedditSource.fromValue(value.first).let {
                         val summary = when (it) {
@@ -287,6 +305,16 @@ class PreferencesFragment : PreferenceFragmentCompat() {
                 }
             }
         }
+    }
+
+    private fun showCommentImageModeDialog(checkedItem: Int) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialog_comment_image_mode_title)
+            .setSingleChoiceItems(R.array.pref_comment_image_mode_labels, checkedItem) { dialog, which ->
+                viewModel.setCommentImageMode(which)
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun showNightModeDialog(checkedItem: Int) {

@@ -91,7 +91,13 @@ class MediaViewerViewModel
     private suspend fun retrieveMedia(link: String, mediaType: MediaType) {
         when (mediaType) {
             MediaType.IMGUR_IMAGE, MediaType.IMAGE -> {
-                setMedia(GalleryMedia.singleton(Type.IMAGE, link))
+                val resolvedLink = if (link.contains("giphy.com")) {
+                    val id = LinkUtil.getGiphyId(link)
+                    if (id != null) LinkUtil.getGiphyGifUrl(id) else link
+                } else {
+                    link
+                }
+                setMedia(GalleryMedia.singleton(Type.IMAGE, resolvedLink))
             }
             MediaType.IMGUR_LINK -> {
                 val id = LinkUtil.getImageIdFromImgurLink(link)

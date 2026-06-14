@@ -41,6 +41,7 @@ class CommentAdapter(
     private val defaultDispatcher: CoroutineDispatcher,
     private val repository: PostListRepository,
     private val commentMapper: CommentMapper2,
+    private val isExpandedDefault: Boolean,
     private val onLinkClickListener: RedditView.OnLinkClickListener? = null,
     private val onCommentLongClick: (CommentEntity) -> Unit
 ) : ListAdapter<Comment, RecyclerView.ViewHolder>(COMMENT_COMPARATOR) {
@@ -312,6 +313,10 @@ class CommentAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(comment: CommentEntity) {
+            if (comment.isMediaExpanded == null) {
+                comment.isMediaExpanded = isExpandedDefault
+            }
+
             binding.comment = comment
 
             binding.commentAuthor.apply {
@@ -356,8 +361,29 @@ class CommentAdapter(
             }
 
             binding.commentBody.apply {
-                setText(comment.body)
-                setOnLinkClickListener(onLinkClickListener)
+                setText(comment.body, comment.isMediaExpanded ?: false)
+                onExpandAllListener = {
+                    currentList.forEach {
+                        (it as? CommentEntity)?.isMediaExpanded = true
+                    }
+                    notifyDataSetChanged()
+                }
+                setOnLinkClickListener(object : RedditView.OnLinkClickListener {
+                    override fun onLinkClick(link: String) {
+                        if (link == "expand_all:") {
+                            currentList.forEach {
+                                (it as? CommentEntity)?.isMediaExpanded = true
+                            }
+                            notifyDataSetChanged()
+                        } else {
+                            onLinkClickListener?.onLinkClick(link)
+                        }
+                    }
+
+                    override fun onLinkLongClick(link: String) {
+                        onLinkClickListener?.onLinkLongClick(link)
+                    }
+                })
                 setOnClickListener {
                     onCommentClick(bindingAdapterPosition)
                 }

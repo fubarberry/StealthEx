@@ -9,10 +9,15 @@ import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.ui.commentmenu.CommentMenuFragment
 import com.cosmos.unreddit.ui.common.fragment.PagingListFragment
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
+import com.cosmos.unreddit.data.repository.PreferencesRepository
+import com.cosmos.unreddit.util.Util
 import com.cosmos.unreddit.util.extension.launchRepeat
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @AndroidEntryPoint
 class UserCommentFragment : PagingListFragment<UserCommentsAdapter, Comment>(),
@@ -37,8 +42,19 @@ class UserCommentFragment : PagingListFragment<UserCommentsAdapter, Comment>(),
         }
     }
 
+    @Inject
+    lateinit var preferencesRepository: PreferencesRepository
+
     override fun createPagingAdapter(): UserCommentsAdapter {
-        return UserCommentsAdapter(requireContext(), this, this)
+        val commentImageMode = runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            preferencesRepository.getCommentImageMode().first()
+        }
+        val isExpandedDefault = when (commentImageMode) {
+            1 -> true
+            2 -> Util.isWifiConnected(requireContext())
+            else -> false
+        }
+        return UserCommentsAdapter(requireContext(), isExpandedDefault, this, this)
     }
 
     override fun onClick(comment: Comment.CommentEntity) {

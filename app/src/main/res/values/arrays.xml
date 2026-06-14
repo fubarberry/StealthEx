@@ -12,5 +12,11 @@
         <item>@string/preference_reddit_source_reddit</item>
         <item>@string/preference_reddit_source_teddit</item>
     </string-array>
+
+    <string-array name="pref_comment_image_mode_labels">
+        <item>@string/pref_comment_image_mode_collapsed</item>
+        <item>@string/pref_comment_image_mode_always</item>
+        <item>@string/pref_comment_image_mode_wifi_only</item>
+    </string-array>
     
 </resources>

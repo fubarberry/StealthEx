@@ -144,7 +144,10 @@ class MediaViewerAdapter(
                                 }
                             }
                         )
-                        target { drawable -> setImageDrawable(drawable) }
+                        target { drawable ->
+                            setImageDrawable(drawable)
+                            (drawable as? android.graphics.drawable.Animatable)?.start()
+                        }
                     }.build()
                 )
             }

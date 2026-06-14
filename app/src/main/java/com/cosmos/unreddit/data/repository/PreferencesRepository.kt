@@ -219,6 +219,17 @@ class PreferencesRepository @Inject constructor(
         preferencesDatastore.setValue(MediaPreferences.PreferencesKeys.MUTE_VIDEO, muteVideo)
     }
 
+    fun getCommentImageMode(defaultValue: Int = 0): Flow<Int> {
+        return preferencesDatastore.getValue(
+            MediaPreferences.PreferencesKeys.COMMENT_IMAGE_MODE,
+            defaultValue
+        )
+    }
+
+    suspend fun setCommentImageMode(mode: Int) {
+        preferencesDatastore.setValue(MediaPreferences.PreferencesKeys.COMMENT_IMAGE_MODE, mode)
+    }
+
     //endregion
 
     //region Policy Disclaimer
