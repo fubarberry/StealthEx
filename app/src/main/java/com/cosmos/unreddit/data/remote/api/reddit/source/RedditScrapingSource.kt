@@ -26,9 +26,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.CompletableDeferred
 import okhttp3.FormBody
 import okhttp3.ResponseBody
 import org.jsoup.nodes.Document
@@ -57,7 +54,7 @@ class RedditScrapingSource @Inject constructor(
 
     override suspend fun getSubredditInfo(subreddit: String): Child {
         return consentOver18(SubredditScraper(ioDispatcher)) {
-            redditApi.getSubredditPage("https://www.reddit.com/r/$subreddit/")
+            redditApi.getSubreddit(subreddit, Sort.HOT, null)
         }
     }
 
@@ -148,46 +145,9 @@ class RedditScrapingSource @Inject constructor(
         timeSorting: TimeSorting?,
         after: String?
     ): Listing {
-        val scrapedListing = consentOver18(SubredditSearchScraper(ioDispatcher)) {
+        return consentOver18(SubredditSearchScraper(ioDispatcher)) {
             redditApi.searchSubreddit(query, sort, timeSorting, after)
         }
-
-        val updatedChildren = coroutineScope {
-            scrapedListing.data.children.mapIndexed { index, child ->
-                if (child is AboutChild && !child.data.displayName.isNullOrEmpty() && index < 12) {
-                    async(ioDispatcher) {
-                        try {
-                            val info = getSubredditInfo(child.data.displayName)
-                            if (info is AboutChild) {
-                                AboutChild(child.data.copy(
-                                    subscribers = info.data.subscribers,
-                                    activeUserCount = info.data.activeUserCount,
-                                    communityIcon = info.data.communityIcon ?: child.data.communityIcon
-                                ))
-                            } else {
-                                child
-                            }
-                        } catch (e: Exception) {
-                            child
-                        }
-                    }
-                } else {
-                    CompletableDeferred(child)
-                }
-            }.awaitAll()
-        }
-
-        val updatedListingData = ListingData(
-            modhash = scrapedListing.data.modhash,
-            dist = scrapedListing.data.dist,
-            children = updatedChildren,
-            after = scrapedListing.data.after,
-            before = scrapedListing.data.before
-        )
-
-        return scrapedListing.copy(
-            data = updatedListingData
-        )
     }
 
     private suspend fun <T> consentOver18(

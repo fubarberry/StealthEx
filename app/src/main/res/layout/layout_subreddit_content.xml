@@ -21,7 +21,7 @@
         <ImageView
             android:id="@+id/subreddit_metrics_header"
             android:layout_width="match_parent"
-            android:layout_height="275dp"
+            android:layout_height="@dimen/subreddit_header_height"
             app:layout_constraintTop_toTopOf="parent"
             android:contentDescription="@null"
             android:scaleType="centerCrop"
@@ -148,6 +148,7 @@
             android:text="@{subreddit.getSubscribersCount()}"
             android:textColor="@null"
             android:textAppearance="@style/TextAppearanceSubredditMetricsMain"
+            android:visibility="gone"
             tools:text="12.5m"/>
 
         <TextView
@@ -156,7 +157,8 @@
             android:layout_height="wrap_content"
             android:text="@string/subreddit_subscribers"
             android:textColor="@null"
-            android:textAppearance="@style/TextAppearanceSubredditMetricsMainLabel"/>
+            android:textAppearance="@style/TextAppearanceSubredditMetricsMainLabel"
+            android:visibility="gone"/>
 
         <TextView
             android:id="@+id/subreddit_active_users"
@@ -165,6 +167,7 @@
             android:text="@{subreddit.getActiveUsers()}"
             android:textColor="@null"
             android:textAppearance="@style/TextAppearanceSubredditMetricsMain"
+            android:visibility="gone"
             tools:text="14.6k"/>
 
         <TextView
@@ -173,7 +176,8 @@
             android:layout_height="wrap_content"
             android:text="@string/subreddit_active_users"
             android:textColor="@null"
-            android:textAppearance="@style/TextAppearanceSubredditMetricsMainLabel"/>
+            android:textAppearance="@style/TextAppearanceSubredditMetricsMainLabel"
+            android:visibility="gone"/>
 
         <include
             android:id="@+id/loading_state"

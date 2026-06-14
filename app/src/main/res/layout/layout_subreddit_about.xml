@@ -53,6 +53,7 @@
             android:layout_marginTop="@dimen/subreddit_drawer_margin_vertical"
             android:text="@{subreddit.getSubscribersCount()}"
             android:textAppearance="@style/TextAppearanceSubredditMetrics"
+            android:visibility="gone"
             tools:text="12.5m"/>
 
         <TextView
@@ -62,7 +63,8 @@
             app:layout_constraintStart_toStartOf="@id/subreddit_subscribers"
             app:layout_constraintTop_toBottomOf="@id/subreddit_subscribers"
             app:layout_constraintEnd_toEndOf="@id/subreddit_subscribers"
-            android:text="@string/subreddit_subscribers"/>
+            android:text="@string/subreddit_subscribers"
+            android:visibility="gone"/>
 
         <TextView
             android:id="@+id/subreddit_active_users"
@@ -73,6 +75,7 @@
             app:layout_constraintBottom_toBottomOf="@id/subreddit_subscribers"
             android:text="@{subreddit.getActiveUsers()}"
             android:textAppearance="@style/TextAppearanceSubredditMetrics"
+            android:visibility="gone"
             tools:text="14.6k"/>
 
         <TextView
@@ -82,7 +85,8 @@
             app:layout_constraintStart_toStartOf="@id/subreddit_active_users"
             app:layout_constraintTop_toBottomOf="@id/subreddit_active_users"
             app:layout_constraintEnd_toEndOf="@id/subreddit_active_users"
-            android:text="@string/subreddit_active_users"/>
+            android:text="@string/subreddit_active_users"
+            android:visibility="gone"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/subreddit_subscribe_button"

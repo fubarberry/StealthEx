@@ -106,7 +106,6 @@ class ScraperTest {
     @Test
     fun testOldPostScraping() = runBlocking {
         val html = fetchHtml("https://old.reddit.com/r/trashy/comments/xjuy16/trashy_woman_caught_in_4k_on_a_twitch_live_stream/")
-        val document = Jsoup.parse(html)
         val scraper = PostScraper(Dispatchers.Unconfined)
         val listing = scraper.scrap(html)
         assertNotNull(listing)
@@ -131,9 +130,26 @@ class ScraperTest {
     }
 
     @Test
+    fun testSubredditScraper() = runBlocking {
+        val html = fetchHtml("https://old.reddit.com/r/android/")
+        val scraper = com.cosmos.unreddit.data.remote.api.reddit.scraper.SubredditScraper(Dispatchers.Unconfined)
+        val child = scraper.scrap(html)
+        assertNotNull(child)
+        org.junit.Assert.assertTrue("Result should be AboutChild", child is com.cosmos.unreddit.data.remote.api.reddit.model.AboutChild)
+        val aboutChild = child as com.cosmos.unreddit.data.remote.api.reddit.model.AboutChild
+        println("SubredditScraper displayName: ${aboutChild.data.displayName}")
+        println("SubredditScraper title: ${aboutChild.data.title}")
+        println("SubredditScraper subscribers: ${aboutChild.data.subscribers}")
+        println("SubredditScraper descriptionHtml: ${aboutChild.data.descriptionHtml}")
+        org.junit.Assert.assertEquals("Android", aboutChild.data.displayName)
+        org.junit.Assert.assertNotNull("Title should not be null", aboutChild.data.title)
+    }
+
+    @Test
     fun testGetRedditVideoMpdUrl() {
         val mpdUrl = LinkUtil.getRedditVideoMpdUrl("https://v.redd.it/mmpzzcrb15p91")
         org.junit.Assert.assertEquals("https://v.redd.it/mmpzzcrb15p91/DASHPlaylist.mpd", mpdUrl)
     }
 }
+
 

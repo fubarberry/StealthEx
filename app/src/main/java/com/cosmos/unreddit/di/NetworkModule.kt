@@ -158,8 +158,23 @@ object NetworkModule {
     @RedditScrapOkHttp
     @Provides
     @Singleton
-    fun provideRedditScrapOkHttpClient(): OkHttpClient {
+    fun provideRedditScrapOkHttpClient(
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+    ): OkHttpClient {
+        val userAgent = try {
+            android.webkit.WebSettings.getDefaultUserAgent(context)
+        } catch (e: Exception) {
+            com.cosmos.unreddit.util.LinkUtil.USER_AGENT
+        }
         return OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", userAgent)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                    .header("Accept-Language", "en-US,en;q=0.5")
+                    .build()
+                chain.proceed(request)
+            }
             .connectTimeout(TIMEOUT.first, TIMEOUT.second)
             .readTimeout(TIMEOUT.first, TIMEOUT.second)
             .writeTimeout(TIMEOUT.first, TIMEOUT.second)

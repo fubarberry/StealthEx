@@ -71,6 +71,7 @@
                 android:textColor="@null"
                 android:textAppearance="@style/TextAppearanceSearchSubredditSubscribers"
                 android:text="@{subreddit.getSubscribersCount()}"
+                android:visibility="gone"
                 tools:text="12.5m"/>
 
         </androidx.constraintlayout.widget.ConstraintLayout>
