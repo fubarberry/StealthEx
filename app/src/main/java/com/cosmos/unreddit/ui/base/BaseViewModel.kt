@@ -75,6 +75,14 @@ open class BaseViewModel(
         }
     }
 
+    fun hidePost(post: PostEntity) {
+        viewModelScope.launch {
+            currentProfile.latest?.let {
+                postListRepository.hidePost(post, it.id)
+            }
+        }
+    }
+
     fun toggleSaveComment(comment: Comment.CommentEntity) {
         viewModelScope.launch {
             currentProfile.latest?.let {

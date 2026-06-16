@@ -18,7 +18,9 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import com.cosmos.unreddit.R
+import com.cosmos.unreddit.ui.common.SwipeActionTouchHelper
 import com.cosmos.unreddit.data.model.Resource
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.SubredditEntity
@@ -248,6 +250,25 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
                 footer = NetworkLoadStateAdapter { postListAdapter.retry() }
             )
         }
+
+        val swipeHandler = SwipeActionTouchHelper(
+            context = requireContext(),
+            onSwipeLeft = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.hidePost(post)
+                }
+            },
+            onSwipeRight = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.toggleSavePost(post)
+                    post.saved = !post.saved
+                    postListAdapter.notifyItemChanged(position)
+                }
+            }
+        )
+        ItemTouchHelper(swipeHandler).attachToRecyclerView(bindingContent.listPost)
 
         bindingContent.pullRefresh.setOnRefreshListener(this)
 

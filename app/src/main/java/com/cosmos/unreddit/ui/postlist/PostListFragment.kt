@@ -19,7 +19,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.paging.LoadState
 import kotlinx.coroutines.flow.first
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import com.cosmos.unreddit.R
+import com.cosmos.unreddit.ui.common.SwipeActionTouchHelper
 import com.cosmos.unreddit.UiViewModel
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.repository.PostListRepository
@@ -285,6 +287,25 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
                 footer = NetworkLoadStateAdapter { postListAdapter.retry() }
             )
         }
+
+        val swipeHandler = SwipeActionTouchHelper(
+            context = requireContext(),
+            onSwipeLeft = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.hidePost(post)
+                }
+            },
+            onSwipeRight = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.toggleSavePost(post)
+                    post.saved = !post.saved
+                    postListAdapter.notifyItemChanged(position)
+                }
+            }
+        )
+        ItemTouchHelper(swipeHandler).attachToRecyclerView(binding.listPost)
 
         binding.pullRefresh.setOnRefreshListener(this)
 
