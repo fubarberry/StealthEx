@@ -7,9 +7,11 @@ import com.cosmos.unreddit.data.local.RedditDatabase
 import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.data.model.Sorting
 import com.cosmos.unreddit.data.model.db.History
+import com.cosmos.unreddit.data.model.db.HiddenPostEntity
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.model.db.Subscription
+import com.cosmos.unreddit.data.model.db.toHiddenPostEntity
 import com.cosmos.unreddit.data.remote.api.reddit.model.AboutChild
 import com.cosmos.unreddit.data.remote.api.reddit.model.AboutUserChild
 import com.cosmos.unreddit.data.remote.api.reddit.model.Child
@@ -239,6 +241,26 @@ class PostListRepository @Inject constructor(
 
     fun getSavedPostIds(profileId: Int): Flow<List<String>> {
         return redditDatabase.postDao().getSavedPostIdsFromProfile(profileId)
+    }
+
+    suspend fun hidePost(post: PostEntity, profileId: Int) {
+        redditDatabase.hiddenPostDao().upsert(post.toHiddenPostEntity(profileId))
+    }
+
+    suspend fun unhidePost(post: PostEntity, profileId: Int) {
+        redditDatabase.hiddenPostDao().deleteFromIdAndProfile(post.id, profileId)
+    }
+
+    fun getHiddenPosts(profileId: Int): Flow<List<HiddenPostEntity>> {
+        return redditDatabase.hiddenPostDao().getHiddenPostsFromProfile(profileId)
+    }
+
+    fun getHiddenPostIds(profileId: Int): Flow<List<String>> {
+        return redditDatabase.hiddenPostDao().getHiddenPostIdsFromProfile(profileId)
+    }
+
+    suspend fun isPostHidden(postId: String, profileId: Int): Boolean {
+        return redditDatabase.hiddenPostDao().isPostHidden(postId, profileId)
     }
 
     suspend fun saveComment(comment: Comment.CommentEntity, profileId: Int) {

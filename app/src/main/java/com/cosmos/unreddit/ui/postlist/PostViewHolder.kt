@@ -16,6 +16,7 @@ import com.cosmos.unreddit.databinding.ItemPostImageBinding
 import com.cosmos.unreddit.databinding.ItemPostLinkBinding
 import com.cosmos.unreddit.databinding.ItemPostTextBinding
 import com.cosmos.unreddit.databinding.ItemPostCompactBinding
+import com.cosmos.unreddit.ui.common.TextDrawable
 import com.cosmos.unreddit.ui.common.widget.AwardView
 import com.cosmos.unreddit.util.ClickableMovementMethod
 import com.cosmos.unreddit.util.extension.load
@@ -526,6 +527,77 @@ abstract class PostViewHolder(
             binding.buttonTypeIndicator.apply {
                 visibility = View.VISIBLE
                 setIcon(R.drawable.ic_link)
+            }
+        }
+    }
+
+    class CompactTextPostViewHolder(
+        private val binding: ItemPostCompactBinding,
+        listener: PostListAdapter.Listener
+    ) : PostViewHolder(
+        binding.root,
+        binding.includePostInfo,
+        binding.includePostMetrics,
+        binding.includePostFlairs,
+        listener
+    ) {
+
+        init {
+            binding.imagePostPreview.setOnClickListener {
+                listener.onClick(bindingAdapterPosition)
+            }
+        }
+
+        fun bind(
+            postEntity: PostEntity,
+            contentPreferences: ContentPreferences,
+            leftHandedMode: Boolean
+        ) {
+            super.bind(postEntity, contentPreferences)
+            binding.includePostInfo.textPostDate.visibility = View.GONE
+            binding.includePostInfo.textDomain.visibility = View.VISIBLE
+            binding.includePostMetrics.textPostDateCompact.visibility = View.VISIBLE
+
+            binding.includePostFlairs.hideDomain = true
+            binding.includePostFlairs.textDomain.visibility = View.GONE
+            binding.includePostInfo.textPostAuthor.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            binding.includePostInfo.textSubreddit.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+
+            val paramsTitle = binding.textPostTitle.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+            val paramsPreview = binding.imagePostPreview.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+
+            if (leftHandedMode) {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToStart = binding.textPostTitle.id
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.startToEnd = binding.imagePostPreview.id
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+            } else {
+                paramsPreview.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsPreview.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsPreview.startToEnd = binding.textPostTitle.id
+                paramsPreview.endToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+
+                paramsTitle.startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                paramsTitle.endToStart = binding.imagePostPreview.id
+                paramsTitle.startToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+                paramsTitle.endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
+            }
+            binding.textPostTitle.layoutParams = paramsTitle
+            binding.imagePostPreview.layoutParams = paramsPreview
+
+            val context = binding.root.context
+            val bgColor = ContextCompat.getColor(context, R.color.card_background_color)
+            val txtColor = ContextCompat.getColor(context, R.color.colorPrimary)
+            val textDrawable = TextDrawable("txt", txtColor, bgColor)
+            binding.imagePostPreview.setImageDrawable(textDrawable)
+
+            binding.buttonTypeIndicator.apply {
+                visibility = View.GONE
             }
         }
     }

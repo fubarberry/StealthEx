@@ -66,6 +66,7 @@ class PostDetailsFragment : BaseFragment(),
         resources.getDimension(R.dimen.subreddit_content_elevation)
     }
 
+    private var postEntity: PostEntity? = null
     private var isLegacyNavigation: Boolean = false
 
     private lateinit var postAdapter: PostAdapter
@@ -254,6 +255,7 @@ class PostDetailsFragment : BaseFragment(),
     }
 
     private fun bindPost(post: PostEntity, fromCache: Boolean) {
+        this.postEntity = post
         binding.appBar.label.text = post.title
         postAdapter.setPost(post, fromCache)
         commentAdapter.postEntity = post
@@ -325,17 +327,44 @@ class PostDetailsFragment : BaseFragment(),
     }
 
     private fun showMenu() {
-        PopupMenu(requireContext(), binding.appBar.moreCard)
-            .apply {
-                menuInflater.inflate(R.menu.post_menu, this.menu)
-                setOnMenuItemClickListener(this@PostDetailsFragment)
-            }
-            .show()
+        val post = postEntity ?: return
+        lifecycleScope.launch {
+            val prefProfileId = preferencesRepository.getCurrentProfile().first()
+            val profileId = repository.getProfile(prefProfileId).id
+            val isHidden = repository.isPostHidden(post.id, profileId)
+
+            PopupMenu(requireContext(), binding.appBar.moreCard)
+                .apply {
+                    menuInflater.inflate(R.menu.post_menu, this.menu)
+                    val hideItem = menu.findItem(R.id.hide_post)
+                    hideItem?.title = if (isHidden) {
+                        getString(R.string.menu_unhide_post)
+                    } else {
+                        getString(R.string.menu_hide_post)
+                    }
+                    setOnMenuItemClickListener(this@PostDetailsFragment)
+                }
+                .show()
+        }
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
+        val post = postEntity ?: return false
         when (item.itemId) {
             R.id.refresh -> viewModel.loadPost(true)
+            R.id.hide_post -> {
+                lifecycleScope.launch {
+                    val prefProfileId = preferencesRepository.getCurrentProfile().first()
+                    val profileId = repository.getProfile(prefProfileId).id
+                    val isHidden = repository.isPostHidden(post.id, profileId)
+                    if (isHidden) {
+                        repository.unhidePost(post, profileId)
+                    } else {
+                        repository.hidePost(post, profileId)
+                        activity?.onBackPressedDispatcher?.onBackPressed()
+                    }
+                }
+            }
             else -> {
                 return false
             }

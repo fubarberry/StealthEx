@@ -3,8 +3,10 @@ package com.cosmos.unreddit.ui.profile
 import com.cosmos.unreddit.data.local.mapper.SavedMapper2
 import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.data.model.SavedItem
+import com.cosmos.unreddit.data.model.db.HiddenPostEntity
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
+import com.cosmos.unreddit.data.model.db.toPostEntity
 import com.cosmos.unreddit.data.model.preferences.ContentPreferences
 import com.cosmos.unreddit.data.repository.PostListRepository
 import com.cosmos.unreddit.data.repository.PreferencesRepository
@@ -78,6 +80,28 @@ class ProfileViewModel @Inject constructor(
             }
 
             emit(items)
+        }
+    }.map { items ->
+        items.sortedByDescending { it.timestamp }
+    }.flowOn(defaultDispatcher)
+
+    private val _hiddenPosts: Flow<List<HiddenPostEntity>> = currentProfile.flatMapLatest {
+        repository.getHiddenPosts(it.id)
+    }
+
+    val hiddenItems: Flow<List<SavedItem>> = combineTransform(
+        _hiddenPosts,
+        contentPreferences
+    ) { _posts, preferences ->
+        coroutineScope {
+            val posts = async {
+                val postEntities = _posts.map { it.toPostEntity() }
+                savedMapper.postsToEntities(postEntities).filter {
+                    preferences.showNsfw || !(it as SavedItem.Post).post.isOver18
+                }
+            }
+
+            emit(posts.await())
         }
     }.map { items ->
         items.sortedByDescending { it.timestamp }

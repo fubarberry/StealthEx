@@ -175,9 +175,14 @@ class ScraperTest {
         // 2. Image link
         val html2 = """<p>Here is a <a href="$directImageLink"><img src="$directImageLink" /></a> image.</p>"""
         val preprocessed2 = htmlParser.preprocessCommentHtml(html2)
+        // Image link should be replaced by "<image> <expand all>"
         org.junit.Assert.assertTrue("Direct image link should show image placeholders", preprocessed2.contains("&lt;image&gt;"))
         org.junit.Assert.assertTrue("Direct image link should have an expand all link", preprocessed2.contains("expand_all:"))
     }
+
+    @Test
+    fun testTextDrawable() {
+        val textDrawable = com.cosmos.unreddit.ui.common.TextDrawable("txt", 0, 0)
+        assertNotNull(textDrawable)
+    }
 }
-
-

@@ -6,9 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.os.bundleOf
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.cosmos.unreddit.NavigationGraphDirections
+import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.db.PostEntity
+import com.cosmos.unreddit.data.repository.PostListRepository
+import com.cosmos.unreddit.data.repository.PreferencesRepository
 import com.cosmos.unreddit.databinding.FragmentPostMenuBinding
 import com.cosmos.unreddit.util.extension.doAndDismiss
 import com.cosmos.unreddit.util.extension.openExternalLink
@@ -16,8 +20,19 @@ import com.cosmos.unreddit.util.extension.parcelable
 import com.cosmos.unreddit.util.extension.serializable
 import com.cosmos.unreddit.util.extension.shareExternalLink
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class PostMenuFragment : BottomSheetDialogFragment() {
+
+    @Inject
+    lateinit var preferencesRepository: PreferencesRepository
+
+    @Inject
+    lateinit var repository: PostListRepository
 
     private var _binding: FragmentPostMenuBinding? = null
     private val binding get() = _binding!!
@@ -70,6 +85,29 @@ class PostMenuFragment : BottomSheetDialogFragment() {
             buttonSharePost.setOnClickListener {
                 val url = "https://www.reddit.com${post.permalink}"
                 doAndDismiss { shareExternalLink(url, post.title) }
+            }
+
+            lifecycleScope.launch {
+                val prefProfileId = preferencesRepository.getCurrentProfile().first()
+                val profileId = repository.getProfile(prefProfileId).id
+                val isHidden = repository.isPostHidden(post.id, profileId)
+
+                buttonHidePost.text = if (isHidden) {
+                    getString(R.string.menu_unhide_post)
+                } else {
+                    getString(R.string.menu_hide_post)
+                }
+
+                buttonHidePost.setOnClickListener {
+                    lifecycleScope.launch {
+                        if (isHidden) {
+                            repository.unhidePost(post, profileId)
+                        } else {
+                            repository.hidePost(post, profileId)
+                        }
+                        dismiss()
+                    }
+                }
             }
         }
     }

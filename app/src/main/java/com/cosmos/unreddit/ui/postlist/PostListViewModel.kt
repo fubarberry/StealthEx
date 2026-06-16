@@ -3,6 +3,7 @@ package com.cosmos.unreddit.ui.postlist
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.filter
 import com.cosmos.unreddit.data.local.mapper.PostMapper2
 import com.cosmos.unreddit.data.model.Data
 import com.cosmos.unreddit.data.model.Sort
@@ -94,9 +95,9 @@ class PostListViewModel
     private var latestUser: Data.User? = null
 
     private val userData: Flow<Data.User> = combine(
-        historyIds, savedPostIds, contentPreferences
-    ) { history, saved, prefs ->
-        Data.User(history, saved, prefs)
+        historyIds, savedPostIds, contentPreferences, hiddenPostIds
+    ) { history, saved, prefs, hidden ->
+        Data.User(history, saved, prefs, hidden = hidden)
     }.onEach {
         latestUser = it
     }.distinctUntilChangedBy {
@@ -109,12 +110,16 @@ class PostListViewModel
     var isDrawerOpen: Boolean = false
 
     init {
-        postDataFlow = fetchData
+        val rawPostDataFlow = fetchData
             // Fetch last user data when search data is updated and merge them together
             .flatMapLatest { fetchData -> userData.map { fetchData to it } }
             .flatMapLatest { getPosts(it.first, it.second) }
             .onEach { _lastRefresh.value = System.currentTimeMillis() }
             .cachedIn(viewModelScope)
+
+        postDataFlow = combine(rawPostDataFlow, hiddenPostIds) { pagingData, hiddenIds ->
+            pagingData.filter { post -> !hiddenIds.contains(post.id) }
+        }
     }
 
     private fun getPosts(data: Data.FetchMultiple, user: Data.User): Flow<PagingData<PostEntity>> {

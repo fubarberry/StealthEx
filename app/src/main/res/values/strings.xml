@@ -196,6 +196,9 @@
     <string name="unsave">Unsave</string>
 
     <string name="tab_profile_saved">Saved</string>
+    <string name="tab_profile_hidden">Hidden</string>
+    <string name="menu_hide_post">Hide</string>
+    <string name="menu_unhide_post">Unhide</string>
 
     <string name="dialog_create_profile_title">Create Profile</string>
     <string name="dialog_create_profile_button">Create</string>

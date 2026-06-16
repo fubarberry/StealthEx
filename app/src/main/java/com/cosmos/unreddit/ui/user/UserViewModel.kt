@@ -3,6 +3,7 @@ package com.cosmos.unreddit.ui.user
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.filter
 import androidx.paging.map
 import com.cosmos.unreddit.data.local.mapper.CommentMapper2
 import com.cosmos.unreddit.data.local.mapper.PostMapper2
@@ -103,9 +104,10 @@ class UserViewModel @Inject constructor(
         historyIds,
         savedPostIds,
         contentPreferences,
-        savedCommentIds
-    ) { history, saved, prefs, savedComments ->
-        Data.User(history, saved, prefs, savedComments)
+        savedCommentIds,
+        hiddenPostIds
+    ) { history, saved, prefs, savedComments, hidden ->
+        Data.User(history, saved, prefs, savedComments, hidden = hidden)
     }.onEach {
         latestUser = it
     }.distinctUntilChangedBy {
@@ -117,10 +119,14 @@ class UserViewModel @Inject constructor(
         .flatMapLatest { searchData -> userData.map { searchData to it } }
 
     init {
-        postDataFlow = data
+        val rawPostDataFlow = data
             .flatMapLatest { data -> getPosts(data.first, data.second) }
             .onEach { _lastRefreshPost.value = System.currentTimeMillis() }
             .cachedIn(viewModelScope)
+
+        postDataFlow = combine(rawPostDataFlow, hiddenPostIds) { pagingData, hiddenIds ->
+            pagingData.filter { post -> !hiddenIds.contains(post.id) }
+        }
 
         commentDataFlow = data
             .flatMapLatest { data -> getComments(data.first, data.second) }

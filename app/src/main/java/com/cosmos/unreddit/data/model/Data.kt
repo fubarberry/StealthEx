@@ -12,6 +12,7 @@ sealed class Data {
         val history: List<String>,
         val saved: List<String>,
         val contentPreferences: ContentPreferences,
-        val savedComments: List<String>? = null
+        val savedComments: List<String>? = null,
+        val hidden: List<String> = listOf()
     ) : Data()
 }

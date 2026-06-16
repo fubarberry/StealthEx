@@ -7,12 +7,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cosmos.unreddit.data.local.dao.CommentDao
 import com.cosmos.unreddit.data.local.dao.HistoryDao
+import com.cosmos.unreddit.data.local.dao.HiddenPostDao
 import com.cosmos.unreddit.data.local.dao.PostDao
 import com.cosmos.unreddit.data.local.dao.ProfileDao
 import com.cosmos.unreddit.data.local.dao.RedirectDao
 import com.cosmos.unreddit.data.local.dao.SubscriptionDao
 import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.data.model.db.History
+import com.cosmos.unreddit.data.model.db.HiddenPostEntity
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.model.db.Redirect
@@ -24,10 +26,11 @@ import com.cosmos.unreddit.data.model.db.Subscription
         History::class,
         Profile::class,
         PostEntity::class,
+        HiddenPostEntity::class,
         Comment.CommentEntity::class,
         Redirect::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -40,6 +43,8 @@ abstract class RedditDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
 
     abstract fun postDao(): PostDao
+
+    abstract fun hiddenPostDao(): HiddenPostDao
 
     abstract fun commentDao(): CommentDao
 
@@ -183,6 +188,46 @@ abstract class RedditDatabase : RoomDatabase() {
                         PRIMARY KEY(`service`)
                     )
                     """.trimIndent())
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `hidden_post` (
+                        `id` TEXT NOT NULL, 
+                        `subreddit` TEXT NOT NULL, 
+                        `title` TEXT NOT NULL, 
+                        `ratio` INTEGER NOT NULL, 
+                        `total_awards` INTEGER NOT NULL, 
+                        `oc` INTEGER NOT NULL, 
+                        `score` TEXT NOT NULL, 
+                        `type` INTEGER NOT NULL, 
+                        `domain` TEXT NOT NULL, 
+                        `self` INTEGER NOT NULL, 
+                        `self_text_html` TEXT, 
+                        `suggested_sorting` TEXT NOT NULL, 
+                        `nsfw` INTEGER NOT NULL, 
+                        `preview` TEXT, 
+                        `spoiler` INTEGER NOT NULL, 
+                        `archived` INTEGER NOT NULL, 
+                        `locked` INTEGER NOT NULL, 
+                        `poster_type` INTEGER NOT NULL, 
+                        `author` TEXT NOT NULL, 
+                        `comments_number` TEXT NOT NULL, 
+                        `permalink` TEXT NOT NULL, 
+                        `stickied` INTEGER NOT NULL, 
+                        `url` TEXT NOT NULL, 
+                        `created` INTEGER NOT NULL, 
+                        `media_type` TEXT NOT NULL, 
+                        `media_url` TEXT NOT NULL, 
+                        `time` INTEGER NOT NULL, 
+                        `profile_id` INTEGER NOT NULL, 
+                    PRIMARY KEY(`id`, `profile_id`), 
+                    FOREIGN KEY(`profile_id`) REFERENCES `profile`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE 
+                    )
+                    """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_hidden_post_profile_id` ON `hidden_post` (`profile_id`)")
             }
         }
     }

@@ -3,6 +3,7 @@ package com.cosmos.unreddit.ui.subreddit
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.filter
 import com.cosmos.unreddit.data.local.mapper.PostMapper2
 import com.cosmos.unreddit.data.local.mapper.SubredditMapper2
 import com.cosmos.unreddit.data.model.Data
@@ -106,9 +107,9 @@ class SubredditViewModel @Inject constructor(
     private var latestUser: Data.User? = null
 
     private val userData: Flow<Data.User> = combine(
-        historyIds, savedPostIds, contentPreferences
-    ) { history, saved, prefs ->
-        Data.User(history, saved, prefs)
+        historyIds, savedPostIds, contentPreferences, hiddenPostIds
+    ) { history, saved, prefs, hidden ->
+        Data.User(history, saved, prefs, hidden = hidden)
     }.onEach {
         latestUser = it
     }.distinctUntilChangedBy {
@@ -119,12 +120,16 @@ class SubredditViewModel @Inject constructor(
     val lastRefresh: StateFlow<Long> = _lastRefresh.asStateFlow()
 
     init {
-        postDataFlow = searchData
+        val rawPostDataFlow = searchData
             .dropWhile { it.query.isBlank() }
             .flatMapLatest { searchData -> userData.map { searchData to it } }
             .flatMapLatest { data -> getPosts(data.first, data.second) }
             .onEach { _lastRefresh.value = System.currentTimeMillis() }
             .cachedIn(viewModelScope)
+
+        postDataFlow = combine(rawPostDataFlow, hiddenPostIds) { pagingData, hiddenIds ->
+            pagingData.filter { post -> !hiddenIds.contains(post.id) }
+        }
     }
 
     private fun getPosts(

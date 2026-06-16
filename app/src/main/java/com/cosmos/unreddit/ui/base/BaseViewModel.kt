@@ -51,6 +51,10 @@ open class BaseViewModel(
         postListRepository.getSavedPostIds(it.id)
     }
 
+    protected val hiddenPostIds: Flow<List<String>> = currentProfile.flatMapLatest {
+        postListRepository.getHiddenPostIds(it.id)
+    }
+
     fun insertPostInHistory(postId: String) {
         viewModelScope.launch {
             currentProfile.latest?.let {

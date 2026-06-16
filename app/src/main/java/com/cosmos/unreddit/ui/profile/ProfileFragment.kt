@@ -94,7 +94,8 @@ class ProfileFragment : BaseFragment() {
 
     private fun initViewPager() {
         val fragments = listOf(
-            FragmentAdapter.Page(R.string.tab_profile_saved, ProfileSavedFragment::class.java)
+            FragmentAdapter.Page(R.string.tab_profile_saved, ProfileSavedFragment::class.java),
+            FragmentAdapter.Page(R.string.tab_profile_hidden, ProfileHiddenFragment::class.java)
         )
 
         val fragmentAdapter = FragmentAdapter(this, fragments)

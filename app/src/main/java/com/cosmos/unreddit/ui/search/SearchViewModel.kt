@@ -90,9 +90,10 @@ class SearchViewModel @Inject constructor(
     private val userData: Flow<Data.User> = combine(
         historyIds,
         savedPostIds,
-        contentPreferences
-    ) { history, saved, prefs ->
-        Data.User(history, saved, prefs)
+        contentPreferences,
+        hiddenPostIds
+    ) { history, saved, prefs, hidden ->
+        Data.User(history, saved, prefs, hidden = hidden)
     }
 
     val data: Flow<Pair<Data.Fetch, Data.User>> = searchData
@@ -100,10 +101,14 @@ class SearchViewModel @Inject constructor(
         .flatMapLatest { searchData -> userData.take(1).map { searchData to it } }
 
     init {
-        postDataFlow = data
+        val rawPostDataFlow = data
             .flatMapLatest { data -> getPosts(data.first, data.second) }
             .onEach { _lastRefreshPost.value = System.currentTimeMillis() }
             .cachedIn(viewModelScope)
+
+        postDataFlow = combine(rawPostDataFlow, hiddenPostIds) { pagingData, hiddenIds ->
+            pagingData.filter { post -> !hiddenIds.contains(post.id) }
+        }
 
         subredditDataFlow = data
             .flatMapLatest { data -> getSubreddits(data.first, data.second) }

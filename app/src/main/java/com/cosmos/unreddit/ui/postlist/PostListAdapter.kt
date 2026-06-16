@@ -179,6 +179,11 @@ class PostListAdapter(
                 ItemPostCompactBinding.inflate(inflater, parent, false),
                 listener
             )
+            // Compact Text post
+            VIEW_TYPE_COMPACT_TEXT -> PostViewHolder.CompactTextPostViewHolder(
+                ItemPostCompactBinding.inflate(inflater, parent, false),
+                listener
+            )
             else -> throw IllegalArgumentException("Unknown type $viewType")
         }
     }
@@ -190,7 +195,7 @@ class PostListAdapter(
                 PostType.IMAGE -> VIEW_TYPE_COMPACT_IMAGE
                 PostType.VIDEO -> VIEW_TYPE_COMPACT_VIDEO
                 PostType.LINK -> VIEW_TYPE_COMPACT_LINK
-                else -> item.type.value
+                PostType.TEXT -> VIEW_TYPE_COMPACT_TEXT
             }
         } else {
             item.type.value
@@ -239,6 +244,12 @@ class PostListAdapter(
                 contentPreferences,
                 leftHandedMode
             )
+            // Compact Text post
+            VIEW_TYPE_COMPACT_TEXT -> (holder as PostViewHolder.CompactTextPostViewHolder).bind(
+                item,
+                contentPreferences,
+                leftHandedMode
+            )
             else -> throw IllegalArgumentException("Unknown type")
         }
     }
@@ -258,6 +269,8 @@ class PostListAdapter(
                 holder.bind(item, contentPreferences, leftHandedMode)
             } else if (holder is PostViewHolder.CompactLinkPostViewHolder) {
                 holder.bind(item, contentPreferences, leftHandedMode)
+            } else if (holder is PostViewHolder.CompactTextPostViewHolder) {
+                holder.bind(item, contentPreferences, leftHandedMode)
             } else {
                 (holder as? PostViewHolder)?.update(item)
             }
@@ -273,6 +286,7 @@ class PostListAdapter(
         private const val VIEW_TYPE_COMPACT_IMAGE = 11
         private const val VIEW_TYPE_COMPACT_VIDEO = 12
         private const val VIEW_TYPE_COMPACT_LINK = 13
+        private const val VIEW_TYPE_COMPACT_TEXT = 14
 
         private val POST_COMPARATOR = object : DiffUtil.ItemCallback<PostEntity>() {
             override fun areItemsTheSame(oldItem: PostEntity, newItem: PostEntity): Boolean {
