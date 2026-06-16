@@ -2,11 +2,10 @@ package com.cosmos.unreddit.ui.common
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
+import android.util.TypedValue
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.DrawableCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.cosmos.unreddit.R
@@ -17,24 +16,20 @@ class SwipeActionTouchHelper(
     private val onSwipeRight: (position: Int) -> Unit
 ) : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
 
-    private val saveIcon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_save_filled)?.let {
-        val wrapped = DrawableCompat.wrap(it).mutate()
-        DrawableCompat.setTint(wrapped, Color.WHITE)
-        wrapped
-    }
-
-    private val hideIcon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_close)?.let {
-        val wrapped = DrawableCompat.wrap(it).mutate()
-        DrawableCompat.setTint(wrapped, Color.WHITE)
-        wrapped
-    }
+    private val saveIcon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_save_filled)
+    private val hideIcon: Drawable? = ContextCompat.getDrawable(context, R.drawable.ic_hide_x)
 
     private val bgPaint = Paint().apply {
         isAntiAlias = true
     }
 
-    private val likeBgColor = ContextCompat.getColor(context, R.color.colorSecondary)
-    private val hideBgColor = Color.parseColor("#9E9E9E")
+    private val themeBgColor: Int by lazy {
+        val typedValue = TypedValue()
+        context.theme.resolveAttribute(android.R.attr.colorBackground, typedValue, true)
+        typedValue.data
+    }
+
+    private val horizontalMargin = (24 * context.resources.displayMetrics.density).toInt()
 
     override fun onMove(
         recyclerView: RecyclerView,
@@ -45,7 +40,11 @@ class SwipeActionTouchHelper(
     }
 
     override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float {
-        return 0.3f
+        return 0.45f
+    }
+
+    override fun getSwipeEscapeVelocity(defaultValue: Float): Float {
+        return defaultValue * 1.2f
     }
 
     override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
@@ -68,9 +67,9 @@ class SwipeActionTouchHelper(
     ) {
         if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
             val itemView = viewHolder.itemView
+            bgPaint.color = themeBgColor
 
             if (dX > 0) { // Swiping right -> reveals left
-                bgPaint.color = likeBgColor
                 c.drawRect(
                     itemView.left.toFloat(),
                     itemView.top.toFloat(),
@@ -82,19 +81,17 @@ class SwipeActionTouchHelper(
                 saveIcon?.let { icon ->
                     val iconHeight = icon.intrinsicHeight
                     val iconWidth = icon.intrinsicWidth
-                    val iconMargin = (itemView.height - iconHeight) / 2
-                    val iconTop = itemView.top + iconMargin
-                    val iconLeft = itemView.left + iconMargin
+                    val iconTop = itemView.top + (itemView.height - iconHeight) / 2
+                    val iconLeft = itemView.left + horizontalMargin
                     val iconRight = iconLeft + iconWidth
                     val iconBottom = iconTop + iconHeight
 
-                    if (dX > iconMargin) {
+                    if (dX > horizontalMargin) {
                         icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
                         icon.draw(c)
                     }
                 }
             } else if (dX < 0) { // Swiping left -> reveals right
-                bgPaint.color = hideBgColor
                 c.drawRect(
                     itemView.right.toFloat() + dX,
                     itemView.top.toFloat(),
@@ -106,13 +103,12 @@ class SwipeActionTouchHelper(
                 hideIcon?.let { icon ->
                     val iconHeight = icon.intrinsicHeight
                     val iconWidth = icon.intrinsicWidth
-                    val iconMargin = (itemView.height - iconHeight) / 2
-                    val iconTop = itemView.top + iconMargin
-                    val iconRight = itemView.right - iconMargin
+                    val iconTop = itemView.top + (itemView.height - iconHeight) / 2
+                    val iconRight = itemView.right - horizontalMargin
                     val iconLeft = iconRight - iconWidth
                     val iconBottom = iconTop + iconHeight
 
-                    if (-dX > iconMargin) {
+                    if (-dX > horizontalMargin) {
                         icon.setBounds(iconLeft, iconTop, iconRight, iconBottom)
                         icon.draw(c)
                     }

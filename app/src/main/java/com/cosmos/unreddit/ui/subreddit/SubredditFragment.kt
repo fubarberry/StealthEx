@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.ui.common.SwipeActionTouchHelper
+import com.cosmos.unreddit.ui.common.widget.CheckableImageView
 import com.cosmos.unreddit.data.model.Resource
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.SubredditEntity
@@ -262,9 +263,23 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             onSwipeRight = { position ->
                 val post = postListAdapter.peek(position)
                 if (post != null) {
+                    val viewHolder = bindingContent.listPost.findViewHolderForAdapterPosition(position)
+                    viewHolder?.itemView?.translationX = 0f
+                    viewHolder?.itemView?.alpha = 0f
                     viewModel.toggleSavePost(post)
-                    post.saved = !post.saved
+                    
                     postListAdapter.notifyItemChanged(position)
+                    
+                    viewHolder?.itemView?.postDelayed({
+                        val updatedViewHolder = bindingContent.listPost.findViewHolderForAdapterPosition(position)
+                        val saveButton = updatedViewHolder?.itemView?.findViewById<CheckableImageView>(R.id.button_save)
+                        if (saveButton != null) {
+                            post.saved = !post.saved
+                            saveButton.isChecked = post.saved
+                        } else {
+                            post.saved = !post.saved
+                        }
+                    }, 350)
                 }
             }
         )
