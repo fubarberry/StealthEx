@@ -51,6 +51,7 @@
             app:layout_constraintBottom_toBottomOf="@id/guideline_app_bar"
             android:layout_marginEnd="@dimen/app_bar_margin"
             app:icon="@drawable/ic_users"
+            android:visibility="gone"
             style="@style/CardButtonStyle"/>
 
         <androidx.constraintlayout.widget.Guideline

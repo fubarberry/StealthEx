@@ -161,17 +161,37 @@ class RedditView @JvmOverloads constructor(
     }
 
     private fun addInlineMedia(url: String) {
-        val imageView = ImageView(context).apply {
+        val imageView = object : ImageView(context) {
+            override fun setImageDrawable(drawable: android.graphics.drawable.Drawable?) {
+                super.setImageDrawable(drawable)
+                if (drawable != null && drawable.intrinsicWidth > 0 && drawable.intrinsicHeight > 0) {
+                    val aspect = drawable.intrinsicHeight.toFloat() / drawable.intrinsicWidth
+                    post {
+                        val viewWidth = width
+                        if (viewWidth > 0) {
+                            val maxAspect = maxHeight.toFloat() / viewWidth
+                            if (aspect > maxAspect) {
+                                scaleType = ScaleType.CENTER_CROP
+                            } else {
+                                scaleType = ScaleType.FIT_CENTER
+                            }
+                        }
+                    }
+                }
+            }
+        }.apply {
             layoutParams = LayoutParams(
                 LayoutParams.MATCH_PARENT,
-                context.resources.getDimensionPixelSize(R.dimen.post_image_height)
+                LayoutParams.WRAP_CONTENT
             ).apply {
                 topMargin = context.resources.getDimensionPixelSize(R.dimen.comment_offset).toInt() / 2
                 bottomMargin = context.resources.getDimensionPixelSize(R.dimen.comment_offset).toInt() / 2
             }
             adjustViewBounds = true
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            load(url, false)
+            maxHeight = (context.resources.displayMetrics.density * 350).toInt()
+            load(url, false) {
+                scale(coil.size.Scale.FIT)
+            }
             setOnClickListener {
                 onLinkClick(url)
             }

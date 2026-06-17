@@ -219,6 +219,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
         binding.drawerLayout.apply {
             setScrimColor(Color.TRANSPARENT)
             drawerElevation = 0F
+            setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
             addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
                 override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
                     val slideX = drawerView.width * slideOffset
@@ -334,7 +335,6 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     private fun initAppBar() {
         binding.appBar.run {
             sortCard.setOnClickListener { showSortDialog() }
-            profileImage.setOnClickListener { openProfileDrawer() }
             title.setOnClickListener { scrollToTop() }
             layoutToggleCard.setOnClickListener {
                 viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)

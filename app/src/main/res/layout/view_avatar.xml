@@ -9,8 +9,9 @@
         android:id="@+id/avatar"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:shapeAppearanceOverlay="@style/CircularImageViewStyle"
-        android:background="@color/colorPrimary"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_logo_large"
+        android:scaleType="fitCenter"
         tools:layout_width="75dp"
         tools:layout_height="75dp" />
 
@@ -26,6 +27,7 @@
         android:textColor="@android:color/white"
         android:gravity="center"
         app:autoSizeTextType="uniform"
+        android:visibility="gone"
         tools:text="ST"/>
 
 </merge>

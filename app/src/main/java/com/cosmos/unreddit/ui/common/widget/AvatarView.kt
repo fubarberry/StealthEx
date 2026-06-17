@@ -56,9 +56,6 @@ class AvatarView @JvmOverloads constructor(
 
     private fun updateView() {
         initials.text = textToInitials()
-        avatar.backgroundTintList = ColorStateList.valueOf(
-            ContextCompat.getColor(context, backgroundColor)
-        )
     }
 
     private fun textToInitials(): String? {
