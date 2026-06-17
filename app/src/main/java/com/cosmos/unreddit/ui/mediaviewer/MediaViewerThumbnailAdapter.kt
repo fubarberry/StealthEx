@@ -38,6 +38,7 @@ class MediaViewerThumbnailAdapter(
     }
 
     fun submitData(images: List<GalleryMedia>) {
+        if (this.images == images) return
         this.images.clear()
         this.images.addAll(images)
         notifyDataSetChanged()

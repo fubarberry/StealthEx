@@ -78,6 +78,7 @@ class MediaViewerAdapter(
     }
 
     fun submitData(images: List<GalleryMedia>) {
+        if (this.media == images) return
         this.media.clear()
         this.media.addAll(images)
         notifyDataSetChanged()
@@ -89,6 +90,12 @@ class MediaViewerAdapter(
         }
         players.clear()
         exoPlayerHelper.clearCache()
+    }
+
+    fun pauseAll() {
+        for (player in players) {
+            player.pause()
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -289,6 +296,18 @@ class MediaViewerAdapter(
                 }
             }
             return false
+        }
+
+        fun play() {
+            binding.video.player?.play()
+        }
+
+        fun pause() {
+            binding.video.player?.pause()
+        }
+
+        fun isPlaying(): Boolean {
+            return binding.video.player?.playWhenReady == true
         }
 
         override fun onPlayerError(error: PlaybackException) {

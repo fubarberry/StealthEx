@@ -73,6 +73,8 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
     private lateinit var mediaAdapter: MediaViewerAdapter
     private lateinit var thumbnailAdapter: MediaViewerThumbnailAdapter
 
+    private var wasPlaying: Boolean = false
+
     private val requestStoragePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -518,10 +520,38 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
         return R.style.ThemeOverlay_App_BottomSheetDialog_MediaViewer
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (_binding != null) {
+            val currentItemPosition = viewerViewModel.selectedPage.value
+            val videoViewHolder = binding.viewPager
+                .getRecyclerView()
+                ?.findViewHolderForAdapterPosition(currentItemPosition)
+                    as? MediaViewerAdapter.VideoViewHolder
+
+            wasPlaying = videoViewHolder?.isPlaying() == true
+            mediaAdapter.pauseAll()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (wasPlaying && _binding != null) {
+            val currentItemPosition = viewerViewModel.selectedPage.value
+            val videoViewHolder = binding.viewPager
+                .getRecyclerView()
+                ?.findViewHolderForAdapterPosition(currentItemPosition)
+                    as? MediaViewerAdapter.VideoViewHolder
+            videoViewHolder?.play()
+            wasPlaying = false
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         showSystemBars(true)
         mediaAdapter.clear()
+        wasPlaying = false
         _binding = null
     }
 
