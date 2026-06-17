@@ -54,4 +54,8 @@ class CardButton @JvmOverloads constructor(
         iconDrawable = drawable
         icon.setImageDrawable(drawable)
     }
+
+    fun setIconTint(tintList: android.content.res.ColorStateList?) {
+        icon.imageTintList = tintList
+    }
 }

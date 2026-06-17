@@ -8,13 +8,15 @@ data class UiPreferences(
     val nightMode: Int,
     val leftHandedMode: Boolean,
     val useCompactLayout: Boolean = false,
-    val usePopularFeed: Boolean = false
+    val usePopularFeed: Boolean = false,
+    val homeFeedType: Int = 0
 ) {
     object PreferencesKeys {
         val NIGHT_MODE = intPreferencesKey("night_mode")
         val LEFT_HANDED_MODE = booleanPreferencesKey("left_handed_mode")
         val USE_COMPACT_LAYOUT = booleanPreferencesKey("use_compact_layout")
         val USE_POPULAR_FEED = booleanPreferencesKey("use_popular_feed")
+        val HOME_FEED_TYPE = intPreferencesKey("home_feed_type")
     }
 
     enum class NightMode(val index: Int, val mode: Int) {

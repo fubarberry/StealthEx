@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/layout_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/sort_padding">
+
+        <TextView
+            android:id="@+id/text_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:textAppearance="@style/TextAppearanceSortTitle"
+            android:text="@string/feed_title"/>
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/group_feed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/text_title"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            android:layout_marginTop="@dimen/sort_margin">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_subscribed"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_person_check"
+                android:text="@string/feed_subscribed"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_popular"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_hot"
+                android:text="@string/feed_popular"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_all"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_world"
+                android:text="@string/feed_all"/>
+
+        </com.google.android.material.chip.ChipGroup>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

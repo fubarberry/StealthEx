@@ -36,6 +36,7 @@ import com.cosmos.unreddit.ui.commentmenu.CommentMenuFragment
 import com.cosmos.unreddit.ui.common.widget.PullToRefreshLayout
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
 import com.cosmos.unreddit.ui.sort.SortFragment
+import com.cosmos.unreddit.ui.feed.FeedFragment
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -77,6 +78,20 @@ fun Fragment.setSortingListener(result: (Sorting?) -> Unit) {
 
 fun Fragment.clearSortingListener() {
     childFragmentManager.clearFragmentResultListener(SortFragment.REQUEST_KEY_SORTING)
+}
+
+fun Fragment.setFeedListener(result: (Int?) -> Unit) {
+    childFragmentManager.setFragmentResultListener(
+        FeedFragment.REQUEST_KEY_FEED,
+        viewLifecycleOwner
+    ) { _, bundle ->
+        val feed = bundle.getInt(FeedFragment.BUNDLE_KEY_FEED, 0)
+        result(feed)
+    }
+}
+
+fun Fragment.clearFeedListener() {
+    childFragmentManager.clearFragmentResultListener(FeedFragment.REQUEST_KEY_FEED)
 }
 
 fun Fragment.setCommentListener(result: (Comment.CommentEntity?) -> Unit) {

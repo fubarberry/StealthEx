@@ -79,6 +79,20 @@ class PreferencesRepository @Inject constructor(
         )
     }
 
+    suspend fun setHomeFeedType(feedType: Int) {
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.HOME_FEED_TYPE,
+            feedType
+        )
+    }
+
+    fun getHomeFeedType(): Flow<Int> {
+        return preferencesDatastore.data.map { preferences ->
+            preferences[UiPreferences.PreferencesKeys.HOME_FEED_TYPE]
+                ?: if (preferences[UiPreferences.PreferencesKeys.USE_POPULAR_FEED] == true) 1 else 0
+        }
+    }
+
     //endregion
 
     //region Content

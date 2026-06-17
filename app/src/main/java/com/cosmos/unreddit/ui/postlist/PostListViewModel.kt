@@ -53,29 +53,28 @@ class PostListViewModel
     private val _sorting: MutableStateFlow<Sorting> = MutableStateFlow(DEFAULT_SORTING)
     val sorting: StateFlow<Sorting> = _sorting
 
-    val usePopularFeed: Flow<Boolean> = preferencesRepository.getUsePopularFeed()
+    val homeFeedType: Flow<Int> = preferencesRepository.getHomeFeedType()
 
-    fun setUsePopularFeed(usePopularFeed: Boolean) {
+    fun setHomeFeedType(feedType: Int) {
         viewModelScope.launch {
-            preferencesRepository.setUsePopularFeed(usePopularFeed)
-        }
-    }
-
-    fun togglePopularFeed() {
-        viewModelScope.launch {
-            val current = preferencesRepository.getUsePopularFeed().first()
-            preferencesRepository.setUsePopularFeed(!current)
+            preferencesRepository.setHomeFeedType(feedType)
         }
     }
 
     val subreddit: Flow<List<String>> = combine(
         subscriptionsNames.distinctUntilChanged(),
-        usePopularFeed
-    ) { subscriptions, popularFeed ->
-        if (popularFeed || subscriptions.isEmpty()) {
-            listOf(DEFAULT_SUBREDDIT)
-        } else {
-            subscriptions.shuffled()
+        homeFeedType
+    ) { subscriptions, feedType ->
+        when (feedType) {
+            1 -> listOf(DEFAULT_SUBREDDIT)
+            2 -> listOf("all")
+            else -> {
+                if (subscriptions.isEmpty()) {
+                    listOf(DEFAULT_SUBREDDIT)
+                } else {
+                    subscriptions.shuffled()
+                }
+            }
         }
     }.flowOn(defaultDispatcher)
 

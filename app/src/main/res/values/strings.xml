@@ -296,4 +296,6 @@
 
     <string name="feed_subscribed">Subscribed</string>
     <string name="feed_popular">Popular</string>
+    <string name="feed_all">All</string>
+    <string name="feed_title">Choose Feed</string>
 </resources>

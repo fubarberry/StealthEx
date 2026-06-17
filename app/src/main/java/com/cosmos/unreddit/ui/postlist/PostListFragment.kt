@@ -32,6 +32,7 @@ import com.cosmos.unreddit.ui.common.widget.PullToRefreshLayout
 import com.cosmos.unreddit.ui.common.widget.PullToRefreshView
 import com.cosmos.unreddit.ui.loadstate.NetworkLoadStateAdapter
 import com.cosmos.unreddit.ui.sort.SortFragment
+import com.cosmos.unreddit.ui.feed.FeedFragment
 import com.cosmos.unreddit.util.DateUtil
 import com.cosmos.unreddit.util.extension.applyMarginWindowInsets
 import com.cosmos.unreddit.util.extension.applyWindowInsets
@@ -44,6 +45,8 @@ import com.cosmos.unreddit.util.extension.launchRepeat
 import com.cosmos.unreddit.util.extension.onRefreshFromNetwork
 import com.cosmos.unreddit.util.extension.setNavigationListener
 import com.cosmos.unreddit.util.extension.setSortingListener
+import com.cosmos.unreddit.util.extension.setFeedListener
+import com.cosmos.unreddit.util.extension.clearFeedListener
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
@@ -168,10 +171,21 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             }
 
             launch {
-                viewModel.usePopularFeed.collect { usePopular ->
+                viewModel.homeFeedType.collect { feedType ->
                     binding.appBar.feedToggleCard.apply {
-                        setIcon(if (usePopular) R.drawable.ic_person_check else R.drawable.ic_hot)
-                        contentDescription = getString(if (usePopular) R.string.feed_subscribed else R.string.feed_popular)
+                        val iconRes = when (feedType) {
+                            1 -> R.drawable.ic_hot
+                            2 -> R.drawable.ic_world
+                            else -> R.drawable.ic_person_check
+                        }
+                        val descRes = when (feedType) {
+                            1 -> R.string.feed_popular
+                            2 -> R.string.feed_all
+                            else -> R.string.feed_subscribed
+                        }
+                        setIcon(iconRes)
+                        setIconTint(null)
+                        contentDescription = getString(descRes)
                     }
                 }
             }
@@ -340,13 +354,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
                 viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)
             }
             feedToggleCard.setOnClickListener {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    val current = viewModel.usePopularFeed.first()
-                    val next = !current
-                    viewModel.setUsePopularFeed(next)
-                    val message = if (next) R.string.feed_popular else R.string.feed_subscribed
-                    android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
-                }
+                showFeedDialog()
             }
         }
         binding.appBarLayout.addOnOffsetChangedListener(onOffsetChangedListener)
@@ -354,6 +362,17 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
 
     private fun initResultListener() {
         setSortingListener { sorting -> sorting?.let { viewModel.setSorting(it) } }
+        setFeedListener { feed ->
+            feed?.let {
+                viewModel.setHomeFeedType(it)
+                val message = when (it) {
+                    1 -> R.string.feed_popular
+                    2 -> R.string.feed_all
+                    else -> R.string.feed_subscribed
+                }
+                android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
 
         setNavigationListener { showNavigation ->
             uiViewModel.setNavigationVisibility(showNavigation && onOffsetChangedListener.visible)
@@ -366,6 +385,13 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
 
     private fun showSortDialog() {
         SortFragment.show(childFragmentManager, viewModel.sorting.value)
+    }
+
+    private fun showFeedDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentFeedType = viewModel.homeFeedType.first()
+            FeedFragment.show(childFragmentManager, currentFeedType)
+        }
     }
 
     private fun updateContainerView(
@@ -413,6 +439,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     override fun onStop() {
         super.onStop()
         clearSortingListener()
+        clearFeedListener()
         clearNavigationListener()
     }
 
