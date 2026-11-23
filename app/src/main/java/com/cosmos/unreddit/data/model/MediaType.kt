@@ -20,6 +20,9 @@ enum class MediaType {
     // Streamable
     STREAMABLE,
 
+    // Twitter / X
+    TWITTER,
+
     // Generic type
     IMAGE, VIDEO,
 

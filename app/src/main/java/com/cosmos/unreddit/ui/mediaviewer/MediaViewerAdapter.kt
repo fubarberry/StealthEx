@@ -18,9 +18,9 @@ import com.cosmos.unreddit.databinding.ItemVideoBinding
 import com.cosmos.unreddit.util.ExoPlayerHelper
 import com.cosmos.unreddit.util.LinkUtil
 import com.cosmos.unreddit.util.extension.asBoolean
+import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.Tracks
 import com.google.android.exoplayer2.source.MergingMediaSource
 import com.google.android.exoplayer2.upstream.HttpDataSource
@@ -38,6 +38,10 @@ class MediaViewerAdapter(
     private val media: MutableList<GalleryMedia> = mutableListOf()
 
     private val players: MutableList<Player> = mutableListOf()
+
+    private val attachedVideoHolders: MutableSet<VideoViewHolder> = mutableSetOf()
+
+    private var activePosition: Int = 0
 
     private val exoPlayerHelper by lazy { ExoPlayerHelper(context) }
 
@@ -79,16 +83,68 @@ class MediaViewerAdapter(
 
     fun submitData(images: List<GalleryMedia>) {
         if (this.media == images) return
+        clearPlayersOnly()
         this.media.clear()
         this.media.addAll(images)
         notifyDataSetChanged()
     }
 
-    fun clear() {
-        for (player in players) {
-            player.release()
+    fun setActivePage(position: Int) {
+        activePosition = position
+        if (media.getOrNull(position)?.type != GalleryMedia.Type.VIDEO) {
+            hasAudio.invoke(false)
+        }
+        attachedVideoHolders.toList().forEach { holder ->
+            if (holder.bindingAdapterPosition == position) {
+                holder.ensurePlaying()
+            } else {
+                holder.releasePlayer()
+            }
+        }
+    }
+
+    override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+        if (holder is VideoViewHolder) {
+            attachedVideoHolders.add(holder)
+            if (holder.bindingAdapterPosition == activePosition) {
+                holder.ensurePlaying()
+            } else {
+                holder.releasePlayer()
+            }
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: RecyclerView.ViewHolder) {
+        super.onViewDetachedFromWindow(holder)
+        if (holder is VideoViewHolder) {
+            attachedVideoHolders.remove(holder)
+            holder.releasePlayer()
+        }
+    }
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        if (holder is VideoViewHolder) {
+            attachedVideoHolders.remove(holder)
+            holder.releasePlayer()
+        }
+    }
+
+    private fun clearPlayersOnly() {
+        attachedVideoHolders.toList().forEach { it.releasePlayer() }
+        for (player in players.toList()) {
+            runCatching {
+                player.stop()
+                player.release()
+            }
         }
         players.clear()
+    }
+
+    fun clear() {
+        clearPlayersOnly()
+        attachedVideoHolders.clear()
         exoPlayerHelper.clearCache()
     }
 
@@ -115,11 +171,16 @@ class MediaViewerAdapter(
             binding.infoRetry.setActionClickListener { loadImage(image) }
         }
 
-        private fun loadImage(image: GalleryMedia) {
+        private fun loadImage(
+            image: GalleryMedia,
+            fallbackUrls: List<String> = LinkUtil.getAlternativeRedditImageUrls(image.url),
+            fallbackIndex: Int = 0
+        ) {
+            val targetUrl = if (fallbackIndex == 0) image.url else fallbackUrls[fallbackIndex - 1]
             with(binding.image) {
                 Coil.imageLoader(context).enqueue(
                     ImageRequest.Builder(context).apply {
-                        data(image.url)
+                        data(targetUrl)
                         crossfade(true)
                         scale(Scale.FILL)
                         precision(Precision.AUTOMATIC)
@@ -138,10 +199,14 @@ class MediaViewerAdapter(
                                 }
                             },
                             onError = { _, _ ->
-                                binding.run {
-                                    loadingCradle.isVisible = false
-                                    showControls.invoke(false)
-                                    infoRetry.show()
+                                if (fallbackIndex < fallbackUrls.size) {
+                                    loadImage(image, fallbackUrls, fallbackIndex + 1)
+                                } else {
+                                    binding.run {
+                                        loadingCradle.isVisible = false
+                                        showControls.invoke(false)
+                                        infoRetry.show()
+                                    }
                                 }
                             },
                             onSuccess = { _, _ ->
@@ -191,7 +256,25 @@ class MediaViewerAdapter(
         private val binding: ItemVideoBinding
     ) : RecyclerView.ViewHolder(binding.root), Player.Listener {
 
+        private var boundVideo: GalleryMedia? = null
+
         fun bind(video: GalleryMedia) {
+            releasePlayer()
+            boundVideo = video
+            binding.infoRetry.hide()
+            if (bindingAdapterPosition == activePosition) {
+                ensurePlaying()
+            }
+        }
+
+        fun ensurePlaying() {
+            val video = boundVideo ?: return
+            val existing = binding.video.player
+            if (existing != null) {
+                existing.play()
+                return
+            }
+
             android.util.Log.d("StealthEx", "VideoViewHolder bind: video.url=${video.url}, video.sound=${video.sound}")
             val url = video.url.toHttpUrlOrNull() ?: return
 
@@ -201,9 +284,11 @@ class MediaViewerAdapter(
                     .associateWith { url.queryParameter(it) ?: "" }
 
                 exoPlayerHelper.setRequestProperties(requestProperties)
+            } else {
+                exoPlayerHelper.setRequestProperties(emptyMap())
             }
 
-            val player = SimpleExoPlayer.Builder(binding.video.context)
+            val player = ExoPlayer.Builder(binding.video.context)
                 .setMediaSourceFactory(exoPlayerHelper.defaultMediaSourceFactory)
                 .build()
 
@@ -248,13 +333,25 @@ class MediaViewerAdapter(
             players.add(player)
 
             binding.video.run {
-                this.player = player
                 setControllerVisibilityListener { controllerVisibility ->
                     showControls.invoke(controllerVisibility.asBoolean)
                 }
+                this.player = player
             }
 
             binding.infoRetry.setActionClickListener { player.prepare() }
+        }
+
+        fun releasePlayer() {
+            val current = binding.video.player
+            binding.video.player = null
+            if (current != null) {
+                players.remove(current)
+                runCatching {
+                    current.stop()
+                    current.release()
+                }
+            }
         }
 
         private fun isErrorFromAudio(error: PlaybackException): Boolean {
@@ -279,7 +376,7 @@ class MediaViewerAdapter(
         }
 
         fun muteAudio(shouldMute: Boolean) {
-            (binding.video.player as? SimpleExoPlayer)?.volume = if (shouldMute) 0F else 1F
+            (binding.video.player as? ExoPlayer)?.volume = if (shouldMute) 0F else 1F
         }
 
         private fun hasAudio(tracks: Tracks): Boolean {

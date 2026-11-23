@@ -31,6 +31,9 @@ interface BaseDao<T> {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(obj: T)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(vararg obj: T)
+
     /**
      * Update an object from the database.
      *

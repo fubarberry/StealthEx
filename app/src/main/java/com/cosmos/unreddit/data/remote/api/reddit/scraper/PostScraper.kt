@@ -81,7 +81,7 @@ class PostScraper(
         val crosspostTitle = attr(Selector.Attr.CROSSPOST_ROOT_TITLE)
         val crosspostAuthor = attr(Selector.Attr.CROSSPOST_ROOT_AUTHOR)
         val crosspostSubredditPrefixed = attr(Selector.Attr.CROSSPOST_ROOT_SUBREDDIT_PREFIXED)
-        val crosspostTime = attr(Selector.Attr.CROSSPOST_ROOT_TIME) // TODO: format = 1 year ago
+        // TODO: parse CROSSPOST_ROOT_TIME (format = "1 year ago")
 
         val crosspost = crosspostAuthor
             .takeIf { it.isNotBlank() }
@@ -153,7 +153,7 @@ class PostScraper(
         val galleryData = expando?.toGalleryData()
         val mediaMetadata = expando?.toMediaMetadata()
 
-        val selfTextHtml = selectFirst("div.usertext-body")
+        val selfTextHtml = (selectFirst("div.usertext-body") ?: expando?.selectFirst("div.usertext-body"))
             ?.selectFirst(Selector.MD)?.outerHtml()
 
         val tagline = getTagline()

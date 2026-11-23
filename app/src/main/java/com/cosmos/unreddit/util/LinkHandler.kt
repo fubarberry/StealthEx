@@ -27,6 +27,17 @@ class LinkHandler @Inject constructor(
         get() = fragment as? BaseFragment
 
     fun handleLink(link: String) {
+        if (link == "expand_all:") return
+        if (link.startsWith("tweet_media:")) {
+            val tweetUrl = link.removePrefix("tweet_media:")
+            val cached = TweetResolver.getCachedTweet(tweetUrl)
+            if (cached != null && cached.hasMedia) {
+                openGallery(cached.toGalleryMedia())
+            } else {
+                openMedia(tweetUrl, MediaType.TWITTER)
+            }
+            return
+        }
         val mediaType = LinkUtil.getLinkType(link)
         handleLink(link, mediaType)
     }
@@ -59,6 +70,8 @@ class LinkHandler @Inject constructor(
             MediaType.GFYCAT,
             MediaType.REDGIFS,
             MediaType.STREAMABLE,
+            MediaType.REDDIT_GIF,
+            MediaType.REDDIT_VIDEO,
             MediaType.IMAGE,
             MediaType.VIDEO -> openMedia(link, mediaType)
 

@@ -3,10 +3,12 @@ package com.cosmos.unreddit.ui.subreddit
 import android.content.DialogInterface
 import android.graphics.Color
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import androidx.appcompat.widget.PopupMenu
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.GravityCompat
@@ -26,6 +28,7 @@ import com.cosmos.unreddit.data.model.Resource
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.SubredditEntity
 import com.cosmos.unreddit.data.repository.PostListRepository
+import com.cosmos.unreddit.databinding.DialogMultiredditNameBinding
 import com.cosmos.unreddit.databinding.FragmentSubredditBinding
 import com.cosmos.unreddit.databinding.LayoutSubredditAboutBinding
 import com.cosmos.unreddit.databinding.LayoutSubredditContentBinding
@@ -36,20 +39,27 @@ import com.cosmos.unreddit.ui.loadstate.NetworkLoadStateAdapter
 import com.cosmos.unreddit.ui.postlist.PostListAdapter
 import com.cosmos.unreddit.ui.postmenu.PostMenuFragment
 import com.cosmos.unreddit.ui.sort.SortFragment
+import com.cosmos.unreddit.ui.layout.LayoutFragment
 import com.cosmos.unreddit.util.DateUtil
 import com.cosmos.unreddit.util.extension.addLoadStateListener
 import com.cosmos.unreddit.util.extension.applyWindowInsets
 import com.cosmos.unreddit.util.extension.betterSmoothScrollToPosition
 import com.cosmos.unreddit.util.extension.clearSortingListener
+import com.cosmos.unreddit.util.extension.clearLayoutListener
 import com.cosmos.unreddit.util.extension.clearWindowInsetsListener
 import com.cosmos.unreddit.util.extension.launchRepeat
 import com.cosmos.unreddit.util.extension.loadSubredditIcon
 import com.cosmos.unreddit.util.extension.onRefreshFromNetwork
 import com.cosmos.unreddit.util.extension.setSortingListener
+import com.cosmos.unreddit.util.extension.setLayoutListener
+import com.cosmos.unreddit.util.extension.text
 import com.cosmos.unreddit.util.extension.toPixels
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -76,6 +86,8 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
         get() = bindingAbout.subredditSubscribeButton.isEnabled
         set(value) {
             bindingAbout.subredditSubscribeButton.isEnabled = value
+            bindingAbout.subredditPinButton.isEnabled = value
+            bindingAbout.subredditMultiredditButton.isEnabled = value
         }
 
     @Inject
@@ -100,14 +112,15 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        bindingContent.root.applyWindowInsets(left = false, right = false, bottom = false)
-
         initResultListener()
         initAppBar()
         initRecyclerView()
         initDrawer()
         bindViewModel()
         bindingAbout.subredditSubscribeButton.setOnClickListener { toggleSubscription() }
+        bindingAbout.subredditPinButton.setOnClickListener { togglePin() }
+        bindingAbout.subredditMultiredditButton.setOnClickListener { showAddToMultiredditDialog() }
+        bindingAbout.subredditMultiredditButton.visibility = View.VISIBLE
         bindingContent.loadingState.infoRetry.setActionClickListener { retry() }
 
         viewModel.contentLayoutProgress?.let { bindingContent.layoutRoot.progress = it }
@@ -117,6 +130,8 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     override fun applyInsets(view: View) {
         ViewCompat.setOnApplyWindowInsetsListener(view) { rootView, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            binding.container.setContentPadding(0, insets.top, 0, 0)
 
             binding.subredditAbout.subredditName.run {
                 updatePadding(
@@ -136,17 +151,36 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     private fun bindViewModel() {
         launchRepeat(Lifecycle.State.STARTED) {
             launch {
-                viewModel.contentPreferences.collect {
+                combine(viewModel.contentPreferences, viewModel.about) { prefs, about ->
+                    if (about.dataValue?.over18 == true) {
+                        prefs.copy(showNsfwPreview = true)
+                    } else {
+                        prefs
+                    }
+                }.collect {
                     postListAdapter.contentPreferences = it
                 }
             }
 
             launch {
-                viewModel.useCompactLayout.collect { useCompact ->
-                    postListAdapter.useCompactLayout = useCompact
-                    bindingContent.layoutToggleCard.setIcon(
-                        if (useCompact) R.drawable.ic_layout_large else R.drawable.ic_layout_compact
-                    )
+                viewModel.layoutType.collect { layoutType ->
+                    postListAdapter.layoutType = layoutType
+                    bindingContent.listPost.isFullscreenMode = (layoutType == 2)
+                    bindingContent.layoutToggleCard.apply {
+                        val iconRes = when (layoutType) {
+                            1 -> R.drawable.ic_layout_compact
+                            2 -> R.drawable.ic_layout_fullscreen
+                            else -> R.drawable.ic_layout_large
+                        }
+                        val descRes = when (layoutType) {
+                            1 -> R.string.layout_compact
+                            2 -> R.string.layout_fullscreen
+                            else -> R.string.layout_card
+                        }
+                        setIcon(iconRes)
+                        setIconTint(null)
+                        contentDescription = getString(descRes)
+                    }
                 }
             }
 
@@ -208,6 +242,19 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             }
 
             launch {
+                viewModel.isPinned.collect { isPinned ->
+                    with(bindingAbout.subredditPinButton) {
+                        visibility = View.VISIBLE
+                        text = if (isPinned) {
+                            getString(R.string.subreddit_button_unpin)
+                        } else {
+                            getString(R.string.subreddit_button_pin)
+                        }
+                    }
+                }
+            }
+
+            launch {
                 viewModel.isDescriptionCollapsed.collect { isCollapsed ->
                     // TODO: Animate layout changes
                     val maxHeight = if (isCollapsed) {
@@ -220,6 +267,12 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
                         constrainMaxHeight(R.id.subreddit_public_description, maxHeight)
                         applyTo(bindingAbout.layoutRoot)
                     }
+                }
+            }
+
+            launch {
+                viewModel.availableMultireddits.collect {
+                    // Keep multireddits StateFlow active while viewing subreddit
                 }
             }
 
@@ -263,23 +316,8 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             onSwipeRight = { position ->
                 val post = postListAdapter.peek(position)
                 if (post != null) {
-                    val viewHolder = bindingContent.listPost.findViewHolderForAdapterPosition(position)
-                    viewHolder?.itemView?.translationX = 0f
-                    viewHolder?.itemView?.alpha = 0f
                     viewModel.toggleSavePost(post)
-                    
-                    postListAdapter.notifyItemChanged(position)
-                    
-                    viewHolder?.itemView?.postDelayed({
-                        val updatedViewHolder = bindingContent.listPost.findViewHolderForAdapterPosition(position)
-                        val saveButton = updatedViewHolder?.itemView?.findViewById<CheckableImageView>(R.id.button_save)
-                        if (saveButton != null) {
-                            post.saved = !post.saved
-                            saveButton.isChecked = post.saved
-                        } else {
-                            post.saved = !post.saved
-                        }
-                    }, 350)
+                    post.saved = !post.saved
                 }
             }
         )
@@ -309,16 +347,35 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
             sortCard.setOnClickListener { showSortDialog() }
             backCard.setOnClickListener { onBackPressed() }
             moreCard.setOnClickListener { showMenu() }
+            infoCard.setOnClickListener { openDrawer() }
             subredditName.setOnClickListener { scrollToTop() }
             subredditImage.setOnClickListener { scrollToTop() }
             layoutToggleCard.setOnClickListener {
-                viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)
+                showLayoutDialog()
             }
         }
     }
 
     private fun initResultListener() {
         setSortingListener { sorting -> sorting?.let { viewModel.setSorting(it) } }
+        setLayoutListener { layout ->
+            layout?.let {
+                viewModel.setLayoutType(it)
+                val message = when (it) {
+                    1 -> R.string.layout_compact
+                    2 -> R.string.layout_fullscreen
+                    else -> R.string.layout_card
+                }
+                android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showLayoutDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentLayoutType = viewModel.layoutType.first()
+            LayoutFragment.show(childFragmentManager, currentLayoutType)
+        }
     }
 
     private fun bindInfo(about: SubredditEntity) {
@@ -386,7 +443,8 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
         navigate(
             SubredditFragmentDirections.openSearch(
                 viewModel.subreddit.value,
-                viewModel.about.value.dataValue?.icon
+                viewModel.about.value.dataValue?.icon,
+                viewModel.about.value.dataValue?.over18 == true
             )
         )
     }
@@ -414,16 +472,122 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     }
 
     private fun toggleSubscription() {
+        if (viewModel.isSubscribed.value) {
+            val name = viewModel.about.value.dataValue?.displayName ?: viewModel.subreddit.value
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle(R.string.dialog_unsubscribe_title)
+                .setMessage(getString(R.string.dialog_unsubscribe_body, name))
+                .setPositiveButton(R.string.subreddit_button_unsubscribe) { _, _ ->
+                    if (!viewModel.isSubredditReachable) {
+                        isSubscribeEnabled = false
+                    }
+                    viewModel.toggleSubscription()
+                }
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .show()
+        } else {
+            if (!viewModel.isSubredditReachable) {
+                isSubscribeEnabled = false
+            }
+            viewModel.toggleSubscription()
+        }
+    }
+
+    private fun togglePin() {
         if (!viewModel.isSubredditReachable) {
             isSubscribeEnabled = false
         }
-        viewModel.toggleSubscription()
+        viewModel.togglePin()
+    }
+
+    private fun showAddToMultiredditDialog() {
+        val subredditName = viewModel.getCurrentSubredditName()
+        if (subredditName.isBlank()) return
+
+        val multireddits = viewModel.availableMultireddits.value
+        if (multireddits.isEmpty()) {
+            showCreateMultiredditDialog()
+            return
+        }
+
+        val names = multireddits.map { it.multireddit.name }.toTypedArray()
+        val checked = multireddits.map { it.containsSubreddit(subredditName) }.toBooleanArray()
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(getString(R.string.dialog_add_to_multireddit_title, subredditName))
+            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton(R.string.dialog_multireddit_save_button) { _, _ ->
+                val selectedIds = multireddits
+                    .filterIndexed { index, _ -> checked[index] }
+                    .map { it.multireddit.id }
+                    .toSet()
+                viewModel.updateMultiredditMembership(selectedIds)
+            }
+            .setNeutralButton(R.string.dialog_new_multireddit_button) { _, _ ->
+                showCreateMultiredditDialog()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+    }
+
+    private fun showCreateMultiredditDialog() {
+        val dialogBinding = DialogMultiredditNameBinding.inflate(requireActivity().layoutInflater)
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialog_create_multireddit_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.dialog_multireddit_create_button, null)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+
+        val submit = {
+            val name = dialogBinding.inputName.text().toString().trim()
+            if (name.isBlank()) {
+                dialogBinding.inputName.error = getString(R.string.dialog_multireddit_name_blank_error)
+            } else {
+                viewModel.createMultiredditWithSubreddit(name)
+                dialog.dismiss()
+            }
+        }
+
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener { submit() }
+        dialogBinding.editName.setOnEditorActionListener { _, actionId, event ->
+            val isEnter = event != null &&
+                event.action == KeyEvent.ACTION_DOWN &&
+                (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+            if (actionId == EditorInfo.IME_ACTION_DONE || isEnter) {
+                submit()
+                true
+            } else {
+                false
+            }
+        }
     }
 
     private fun showMenu() {
         PopupMenu(requireContext(), binding.subredditContent.moreCard)
             .apply {
                 menuInflater.inflate(R.menu.subreddit_menu, this.menu)
+                menu.findItem(R.id.subscribe)?.apply {
+                    isEnabled = isSubscribeEnabled
+                    title = if (viewModel.isSubscribed.value) {
+                        getString(R.string.subreddit_button_unsubscribe)
+                    } else {
+                        getString(R.string.subreddit_button_subscribe)
+                    }
+                }
+                menu.findItem(R.id.pin)?.apply {
+                    isEnabled = isSubscribeEnabled
+                    title = if (viewModel.isPinned.value) {
+                        getString(R.string.subreddit_button_unpin)
+                    } else {
+                        getString(R.string.subreddit_button_pin)
+                    }
+                }
+                menu.findItem(R.id.multireddit)?.apply {
+                    isEnabled = isSubscribeEnabled
+                }
                 setOnMenuItemClickListener(this@SubredditFragment)
             }
             .show()
@@ -434,8 +598,8 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     }
 
     private fun DialogInterface.handleUserAcknowledgement() {
-        if (viewModel.isSubscribed.value) {
-            // Allow the user to unsubscribe
+        if (viewModel.isSubscribed.value || viewModel.isPinned.value) {
+            // Allow the user to unsubscribe or unpin
             dismiss()
         } else {
             onBackPressed()
@@ -445,6 +609,9 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
     override fun onMenuItemClick(menuItem: MenuItem): Boolean {
         when (menuItem.itemId) {
             R.id.search -> showSearchFragment()
+            R.id.subscribe -> toggleSubscription()
+            R.id.pin -> togglePin()
+            R.id.multireddit -> showAddToMultiredditDialog()
             R.id.sidebar -> openDrawer()
             else -> {
                 return false
@@ -465,7 +632,22 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
         }
     }
 
+    override fun onPauseFullscreenMedia() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.pausePlayback()
+        }
+    }
+
+    override fun onResumeFullscreenMedia() {
+        if (_binding != null && ::postListAdapter.isInitialized) {
+            postListAdapter.resumePlayback()
+        }
+    }
+
     override fun onDestroyView() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.releasePlayer()
+        }
         super.onDestroyView()
 
         (binding.subredditContent.pullRefresh.refreshView as? PullToRefreshLayout.RefreshCallback)
@@ -477,6 +659,7 @@ class SubredditFragment : BaseFragment(), PopupMenu.OnMenuItemClickListener,
         viewModel.drawerContentLayoutProgress = binding.drawerContent.progress
 
         clearSortingListener()
+        clearLayoutListener()
 
         _binding = null
         _bindingContent = null

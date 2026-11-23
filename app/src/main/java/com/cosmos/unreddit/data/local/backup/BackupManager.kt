@@ -7,6 +7,8 @@ import com.cosmos.unreddit.data.local.mapper.BackupPostMapper
 import com.cosmos.unreddit.data.local.mapper.ProfileMapper
 import com.cosmos.unreddit.data.local.mapper.SubscriptionMapper
 import com.cosmos.unreddit.data.model.backup.Profile
+import com.cosmos.unreddit.data.model.db.Multireddit
+import com.cosmos.unreddit.data.model.db.toHiddenPostEntity
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 
@@ -38,39 +40,83 @@ sealed class BackupManager(
         val subscriptionDao = redditDatabase.subscriptionDao()
         val postDao = redditDatabase.postDao()
         val commentDao = redditDatabase.commentDao()
+        val hiddenPostDao = redditDatabase.hiddenPostDao()
+        val multiredditDao = redditDatabase.multiredditDao()
 
         profiles.forEach { profile ->
-            val row = profileDao.insert(ProfileDb(name = profile.name))
+            val targetProfileId = profileDao.getProfileByName(profile.name)?.id
+                ?: if (profiles.size == 1) {
+                    runCatching { profileDao.getFirstProfile().id }.getOrNull()
+                } else {
+                    null
+                }
+                ?: profileDao.insert(ProfileDb(name = profile.name)).toInt()
 
-            val insertedProfile = profileDao.getProfileFromId(row.toInt())
-
-            insertedProfile?.id?.let { id ->
-                subscriptionMapper
-                    .dataFromEntities(profile.subscriptions)
-                    .map { subscription -> subscription.apply { profileId = id } }
-                    .toTypedArray()
-                    .let { subscriptions ->
-                        subscriptionDao.insert(*subscriptions)
+            subscriptionMapper
+                .dataFromEntities(profile.subscriptions)
+                .map { subscription -> subscription.apply { profileId = targetProfileId } }
+                .toTypedArray()
+                .let { subscriptions ->
+                    if (subscriptions.isNotEmpty()) {
+                        subscriptionDao.upsert(*subscriptions)
                     }
-
-                profile.savedPosts?.let { savedPosts ->
-                    backupPostMapper
-                        .dataFromEntities(savedPosts)
-                        .map { post -> post.apply { profileId = id } }
-                        .toTypedArray()
-                        .let { posts ->
-                            postDao.insert(*posts)
-                        }
                 }
 
-                profile.savedComments?.let { savedComments ->
-                    backupCommentMapper
-                        .dataFromEntities(savedComments)
-                        .map { comment -> comment.apply { profileId = id } }
-                        .toTypedArray()
-                        .let { comments ->
-                            commentDao.insert(*comments)
+            profile.savedPosts?.let { savedPosts ->
+                backupPostMapper
+                    .dataFromEntities(savedPosts)
+                    .map { post -> post.apply { profileId = targetProfileId } }
+                    .toTypedArray()
+                    .let { posts ->
+                        if (posts.isNotEmpty()) {
+                            postDao.upsert(*posts)
                         }
+                    }
+            }
+
+            profile.savedComments?.let { savedComments ->
+                backupCommentMapper
+                    .dataFromEntities(savedComments)
+                    .map { comment -> comment.apply { profileId = targetProfileId } }
+                    .toTypedArray()
+                    .let { comments ->
+                        if (comments.isNotEmpty()) {
+                            commentDao.upsert(*comments)
+                        }
+                    }
+            }
+
+            profile.hiddenPosts?.let { hiddenPosts ->
+                backupPostMapper
+                    .dataFromEntities(hiddenPosts)
+                    .map { post -> post.toHiddenPostEntity(targetProfileId).copy(time = post.time) }
+                    .toTypedArray()
+                    .let { posts ->
+                        if (posts.isNotEmpty()) {
+                            hiddenPostDao.upsert(*posts)
+                        }
+                    }
+            }
+
+            profile.multireddits?.forEach { multiBackup ->
+                val cleanName = multiBackup.name.trim()
+                if (cleanName.isNotBlank()) {
+                    val existing = multiredditDao.getMultiredditByName(targetProfileId, cleanName)
+                    if (existing != null) {
+                        val merged = existing.subredditNames + multiBackup.subreddits
+                        multiredditDao.replaceSubreddits(existing.multireddit.id, merged)
+                    } else {
+                        val multiId = multiredditDao.insertMultireddit(
+                            Multireddit(
+                                name = cleanName,
+                                time = multiBackup.time,
+                                profileId = targetProfileId
+                            )
+                        ).toInt()
+                        if (multiBackup.subreddits.isNotEmpty()) {
+                            multiredditDao.replaceSubreddits(multiId, multiBackup.subreddits)
+                        }
+                    }
                 }
             }
         }

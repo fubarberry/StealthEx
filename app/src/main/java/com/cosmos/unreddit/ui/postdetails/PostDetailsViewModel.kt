@@ -140,15 +140,23 @@ class PostDetailsViewModel @Inject constructor(
                 }
                 .collect { listings ->
                     val post = async { postMapper.dataToEntity(PostUtil.getPostData(listings)) }
-                    val comments = async {
-                        val list = commentMapper.dataToEntities(
-                            PostUtil.getCommentsData(listings),
-                            PostUtil.getPostData(listings)
+                    if (PostUtil.isCommentsError(listings)) {
+                        _post.value = Resource.Success(post.await())
+                        _comments.value = Resource.Error(
+                            code = PostUtil.getCommentsErrorCode(listings),
+                            message = PostUtil.getCommentsErrorMessage(listings)
                         )
-                        getComments(list, DEPTH_LIMIT)
+                    } else {
+                        val comments = async {
+                            val list = commentMapper.dataToEntities(
+                                PostUtil.getCommentsData(listings),
+                                PostUtil.getPostData(listings)
+                            )
+                            getComments(list, DEPTH_LIMIT)
+                        }
+                        _post.value = Resource.Success(post.await())
+                        _comments.value = Resource.Success(comments.await())
                     }
-                    _post.value = Resource.Success(post.await())
-                    _comments.value = Resource.Success(comments.await())
                 }
         }
     }

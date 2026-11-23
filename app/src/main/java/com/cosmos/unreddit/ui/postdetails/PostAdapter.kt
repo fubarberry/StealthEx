@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
+import coil.dispose
 import coil.request.ImageRequest
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.MediaType
@@ -15,6 +16,7 @@ import com.cosmos.unreddit.data.model.preferences.ContentPreferences
 import com.cosmos.unreddit.databinding.ItemPostHeaderBinding
 import com.cosmos.unreddit.ui.common.widget.RedditView
 import com.cosmos.unreddit.ui.postlist.PostListAdapter
+import com.cosmos.unreddit.util.LinkUtil
 import com.cosmos.unreddit.util.extension.load
 import com.cosmos.unreddit.util.extension.setRatio
 
@@ -91,6 +93,7 @@ class PostAdapter(
 
             when (post.type) {
                 PostType.IMAGE -> {
+                    binding.tweetCard.visibility = View.GONE
                     bindImage(post) {
                         error(R.drawable.preview_image_fallback)
                         fallback(R.drawable.preview_image_fallback)
@@ -98,13 +101,30 @@ class PostAdapter(
                     binding.imagePost.setOnClickListener { postClickListener.onImageClick(post) }
                 }
                 PostType.LINK -> {
-                    bindImage(post) {
-                        error(R.drawable.preview_link_fallback)
-                        fallback(R.drawable.preview_link_fallback)
+                    if (LinkUtil.isTwitterStatusLink(post.url)) {
+                        binding.imagePost.dispose()
+                        binding.imagePost.setImageDrawable(null)
+                        binding.imagePost.visibility = View.GONE
+                        binding.tweetCard.apply {
+                            visibility = View.VISIBLE
+                            bindTweetUrl(
+                                url = post.url,
+                                blurMedia = !post.shouldShowPreview(contentPreferences),
+                                onCardClick = { onLinkClickListener?.onLinkClick(post.url) ?: postClickListener.onLinkClick(post) },
+                                onMediaClick = { onLinkClickListener?.onLinkClick("tweet_media:${it.url}") }
+                            )
+                        }
+                    } else {
+                        binding.tweetCard.visibility = View.GONE
+                        bindImage(post) {
+                            error(R.drawable.preview_link_fallback)
+                            fallback(R.drawable.preview_link_fallback)
+                        }
+                        binding.imagePost.setOnClickListener { postClickListener.onLinkClick(post) }
                     }
-                    binding.imagePost.setOnClickListener { postClickListener.onLinkClick(post) }
                 }
                 PostType.VIDEO -> {
+                    binding.tweetCard.visibility = View.GONE
                     bindImage(post) {
                         error(R.drawable.preview_video_fallback)
                         fallback(R.drawable.preview_video_fallback)
@@ -112,12 +132,18 @@ class PostAdapter(
                     binding.imagePost.setOnClickListener { postClickListener.onVideoClick(post) }
                 }
                 else -> {
-                    // Ignore
+                    binding.imagePost.dispose()
+                    binding.imagePost.setImageDrawable(null)
+                    binding.imagePost.visibility = View.GONE
+                    binding.tweetCard.visibility = View.GONE
                 }
             }
 
             binding.buttonTypeIndicator.apply {
                 when {
+                    post.type == PostType.LINK && LinkUtil.isTwitterStatusLink(post.url) -> {
+                        visibility = View.GONE
+                    }
                     post.mediaType == MediaType.REDDIT_GALLERY ||
                             post.mediaType == MediaType.IMGUR_ALBUM ||
                             post.mediaType == MediaType.IMGUR_GALLERY -> {
@@ -193,7 +219,7 @@ class PostAdapter(
             binding.textPost.apply {
                 if (post.selfRedditText.isNotEmpty()) {
                     visibility = View.VISIBLE
-                    setText(post.selfRedditText)
+                    setText(post.selfRedditText, true)
                     setOnLinkClickListener(onLinkClickListener)
                 } else {
                     visibility = View.GONE

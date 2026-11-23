@@ -7,12 +7,17 @@ import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.repository.PostListRepository
 import com.cosmos.unreddit.databinding.FragmentSubredditSearchBinding
 import com.cosmos.unreddit.ui.base.BaseFragment
+import com.cosmos.unreddit.ui.common.SwipeActionTouchHelper
+import com.cosmos.unreddit.ui.common.widget.CheckableImageView
+import com.cosmos.unreddit.ui.layout.LayoutFragment
 import com.cosmos.unreddit.ui.loadstate.NetworkLoadStateAdapter
 import com.cosmos.unreddit.ui.postlist.PostListAdapter
 import com.cosmos.unreddit.ui.sort.SortFragment
@@ -20,14 +25,17 @@ import com.cosmos.unreddit.util.SearchUtil
 import com.cosmos.unreddit.util.extension.addLoadStateListener
 import com.cosmos.unreddit.util.extension.applyWindowInsets
 import com.cosmos.unreddit.util.extension.betterSmoothScrollToPosition
+import com.cosmos.unreddit.util.extension.clearLayoutListener
 import com.cosmos.unreddit.util.extension.clearSortingListener
 import com.cosmos.unreddit.util.extension.hideSoftKeyboard
 import com.cosmos.unreddit.util.extension.launchRepeat
 import com.cosmos.unreddit.util.extension.loadSubredditIcon
 import com.cosmos.unreddit.util.extension.onRefreshFromNetwork
+import com.cosmos.unreddit.util.extension.setLayoutListener
 import com.cosmos.unreddit.util.extension.setSortingListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -69,6 +77,18 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
         binding.loadingState.infoRetry.setActionClickListener { postListAdapter.retry() }
     }
 
+    override fun onPauseFullscreenMedia() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.pausePlayback()
+        }
+    }
+
+    override fun onResumeFullscreenMedia() {
+        if (_binding != null && ::postListAdapter.isInitialized) {
+            postListAdapter.resumePlayback()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (binding.appBar.searchInput.isQueryEmpty()) {
@@ -108,13 +128,29 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
 
             launch {
                 viewModel.contentPreferences.collect {
-                    postListAdapter.contentPreferences = it
+                    postListAdapter.contentPreferences = if (args.over18) {
+                        it.copy(showNsfwPreview = true)
+                    } else {
+                        it
+                    }
                 }
             }
 
             launch {
-                viewModel.useCompactLayout.collect { useCompact ->
-                    postListAdapter.useCompactLayout = useCompact
+                viewModel.layoutType.collect { layoutType ->
+                    postListAdapter.layoutType = layoutType
+                    binding.listPost.isFullscreenMode = (layoutType == 2)
+                    val iconRes = when (layoutType) {
+                        1 -> R.drawable.ic_layout_compact
+                        2 -> R.drawable.ic_layout_fullscreen
+                        else -> R.drawable.ic_layout_large
+                    }
+                    binding.appBar.layoutToggleCard.setIcon(iconRes)
+                    binding.appBar.layoutToggleCard.contentDescription = when (layoutType) {
+                        1 -> getString(R.string.layout_compact)
+                        2 -> getString(R.string.layout_fullscreen)
+                        else -> getString(R.string.layout_card)
+                    }
                 }
             }
 
@@ -154,6 +190,24 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
             )
         }
 
+        val swipeHandler = SwipeActionTouchHelper(
+            context = requireContext(),
+            onSwipeLeft = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.hidePost(post)
+                }
+            },
+            onSwipeRight = { position ->
+                val post = postListAdapter.peek(position)
+                if (post != null) {
+                    viewModel.toggleSavePost(post)
+                    post.saved = !post.saved
+                }
+            }
+        )
+        ItemTouchHelper(swipeHandler).attachToRecyclerView(binding.listPost)
+
         launchRepeat(Lifecycle.State.STARTED) {
             postListAdapter.onRefreshFromNetwork {
                 scrollToTop()
@@ -165,6 +219,7 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
         with(binding.appBar) {
             subredditImage.loadSubredditIcon(args.icon)
             sortCard.setOnClickListener { showSortDialog() }
+            layoutToggleCard.setOnClickListener { showLayoutDialog() }
             cancelCard.setOnClickListener { cancelSearch() }
             backCard.setOnClickListener { onBackPressed() }
             label.setOnClickListener { showSearchInput(true) }
@@ -174,6 +229,7 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
                 addTarget(subredditImage)
                 addTarget(label)
                 addTarget(sortIcon)
+                addTarget(layoutToggleCard)
                 addTarget(sortCard)
                 addTarget(cancelCard)
                 setSearchActionListener {
@@ -185,6 +241,21 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
 
     private fun initResultListener() {
         setSortingListener { sorting -> sorting?.let { viewModel.setSorting(it) } }
+        setLayoutListener { layout ->
+            layout?.let {
+                viewModel.setLayoutType(it)
+                val toastMessage = when (it) {
+                    1 -> getString(R.string.layout_compact)
+                    2 -> getString(R.string.layout_fullscreen)
+                    else -> getString(R.string.layout_card)
+                }
+                android.widget.Toast.makeText(
+                    requireContext(),
+                    toastMessage,
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     private fun scrollToTop() {
@@ -196,11 +267,19 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
             with(binding.appBar) {
                 backCard.isVisible = !show
                 label.isVisible = !show
+                layoutToggleCard.isVisible = !show
                 sortCard.isVisible = !show
                 sortIcon.isVisible = !show
                 subredditImage.isVisible = !show
                 cancelCard.isVisible = show
             }
+        }
+    }
+
+    private fun showLayoutDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentLayout = viewModel.layoutType.first()
+            LayoutFragment.show(childFragmentManager, currentLayout)
         }
     }
 
@@ -243,8 +322,12 @@ class SubredditSearchFragment : BaseFragment(), PostListAdapter.PostClickListene
     }
 
     override fun onDestroyView() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.releasePlayer()
+        }
         super.onDestroyView()
         clearSortingListener()
+        clearLayoutListener()
         _binding = null
     }
 

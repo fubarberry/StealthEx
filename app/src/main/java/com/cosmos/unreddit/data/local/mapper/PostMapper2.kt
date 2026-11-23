@@ -26,7 +26,11 @@ class PostMapper2 @Inject constructor(
 
     override suspend fun toEntity(from: PostData): PostEntity {
         with(from) {
-            val redditText = htmlParser.separateHtmlBlocks(selfTextHtml)
+            val redditText = htmlParser.separateHtmlBlocks(
+                selfTextHtml,
+                mediaMetadata,
+                includeExpandAll = false
+            )
             val flair = Flair.fromData(linkFlairRichText, flair)
             return PostEntity(
                 name,

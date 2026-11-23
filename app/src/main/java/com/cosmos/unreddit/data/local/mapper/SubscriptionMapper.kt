@@ -16,13 +16,13 @@ class SubscriptionMapper @Inject constructor(
 
     override suspend fun toEntity(from: Subscription): SubscriptionBackup {
         return with(from) {
-            SubscriptionBackup(name, time, icon)
+            SubscriptionBackup(name, time, icon, isSubscribed, isPinned)
         }
     }
 
     override suspend fun fromEntity(from: SubscriptionBackup): Subscription {
         return with(from) {
-            Subscription(name, time, icon)
+            Subscription(name, time, icon, isSubscribed = isSubscribed, isPinned = isPinned)
         }
     }
 }

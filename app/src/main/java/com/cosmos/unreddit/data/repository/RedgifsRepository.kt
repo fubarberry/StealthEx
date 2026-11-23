@@ -15,7 +15,15 @@ class RedgifsRepository @Inject constructor(
 ) {
 
     fun getRedgifsGif(id: String): Flow<Item> = flow {
-        val authorization = redgifsToken.getAuthorization()
-        emit(redgifsApi.getGif(authorization, id))
+        val normalizedId = id.lowercase()
+        val item = try {
+            val authorization = redgifsToken.getAuthorization()
+            redgifsApi.getGif(authorization, normalizedId)
+        } catch (e: Exception) {
+            redgifsToken.invalidateToken()
+            val freshAuthorization = redgifsToken.getAuthorization(forceRefresh = true)
+            redgifsApi.getGif(freshAuthorization, normalizedId)
+        }
+        emit(item)
     }
 }

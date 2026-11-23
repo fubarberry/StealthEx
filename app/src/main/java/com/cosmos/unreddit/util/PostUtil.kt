@@ -56,4 +56,17 @@ object PostUtil {
     fun getCommentsData(listings: List<Listing>): List<Child> {
         return listings[1].data.children
     }
+
+    fun isCommentsError(listings: List<Listing>): Boolean {
+        return listings.getOrNull(1)?.data?.modhash ==
+            com.cosmos.unreddit.data.remote.api.reddit.source.RedditSource.COMMENT_FETCH_ERROR_MARKER
+    }
+
+    fun getCommentsErrorCode(listings: List<Listing>): Int? {
+        return listings.getOrNull(1)?.data?.dist
+    }
+
+    fun getCommentsErrorMessage(listings: List<Listing>): String? {
+        return listings.getOrNull(1)?.data?.after
+    }
 }

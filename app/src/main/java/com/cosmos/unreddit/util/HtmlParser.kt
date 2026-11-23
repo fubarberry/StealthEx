@@ -7,10 +7,14 @@ import com.cosmos.unreddit.data.model.Block.TextBlock
 import com.cosmos.unreddit.data.model.HtmlBlock
 import com.cosmos.unreddit.data.model.RedditText
 import com.cosmos.unreddit.data.model.MediaType
+import com.cosmos.unreddit.data.remote.api.reddit.model.MediaMetadata
 import com.cosmos.unreddit.util.LinkUtil
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Entities
+import org.jsoup.nodes.TextNode
 import org.jsoup.parser.Parser
 import java.util.LinkedList
 
@@ -19,10 +23,17 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
     private val TABLE_REGEX = Regex("<table>.*?</table>", RegexOption.DOT_MATCHES_ALL)
     private val CODE_REGEX = Regex("<pre><code>(.*?)</code></pre>", RegexOption.DOT_MATCHES_ALL)
     private val PLACEHOLDER_REGEX = Regex("<(table|code)_placeholder/>")
+    private val MARKDOWN_IMAGE_REGEX = Regex("!\\[(img|gif|[^\\]]*)\\]\\(([^)]+)\\)", RegexOption.IGNORE_CASE)
+    private val PROCESSING_IMG_REGEX = Regex("^Processing img ([A-Za-z0-9_-]+)\\.\\.\\.$", RegexOption.IGNORE_CASE)
+    private val REDDIT_MEDIA_ID_REGEX = Regex("^[A-Za-z0-9_-]+$")
 
     private val tagHandler = RedditTagHandler()
 
-    suspend fun separateHtmlBlocks(html: String?): RedditText = withContext(defaultDispatcher) {
+    suspend fun separateHtmlBlocks(
+        html: String?,
+        mediaMetadata: MediaMetadata? = null,
+        includeExpandAll: Boolean = true
+    ): RedditText = withContext(defaultDispatcher) {
             val redditText = RedditText()
 
             if (html == null) return@withContext redditText
@@ -30,7 +41,7 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
             val tables = LinkedList<String>()
             val codes = LinkedList<String>()
 
-            var newHtml = preprocessCommentHtml(html)
+            var newHtml = preprocessCommentHtml(html, mediaMetadata, includeExpandAll)
 
             newHtml = newHtml.replace(TABLE_REGEX) {
                 tables.add(it.groupValues[0])
@@ -120,8 +131,68 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
         return TextBlock(fromHtml(html))
     }
 
-    internal fun preprocessCommentHtml(html: String): String {
+    internal fun preprocessCommentHtml(
+        html: String,
+        mediaMetadata: MediaMetadata? = null,
+        includeExpandAll: Boolean = true
+    ): String {
         val doc = Jsoup.parseBodyFragment(html)
+        doc.select("template, .comment-image-lightbox-content, .lightboxed-content").remove()
+
+        // Wrap any standalone <img> tags not already inside an <a>
+        for (img in doc.select("img")) {
+            if (img.closest("a") == null) {
+                val src = img.attr("src").takeIf { it.isNotBlank() } ?: continue
+                img.wrap("<a href=\"$src\"></a>")
+            }
+        }
+
+        // Convert "Processing img <id>..." placeholders into image links
+        for (em in doc.select("em")) {
+            val match = PROCESSING_IMG_REGEX.matchEntire(em.text().trim()) ?: continue
+            val mediaId = match.groupValues[1]
+            val resolvedUrl = resolveEmbeddedMediaUrl(mediaId, false, mediaMetadata) ?: continue
+            val isGif = resolvedUrl.contains(".gif", ignoreCase = true)
+            val placeholder = if (isGif) "&lt;gif&gt;" else "&lt;image&gt;"
+            em.after("<a href=\"$resolvedUrl\">$placeholder</a>")
+            em.remove()
+        }
+
+        // Convert markdown ![img](...) / ![gif](...) syntax in text nodes into <a> links
+        val textNodes = mutableListOf<TextNode>()
+        collectTextNodes(doc.body(), textNodes)
+        for (textNode in textNodes) {
+            val rawText = textNode.wholeText
+            if (!rawText.contains("![")) continue
+            val matches = MARKDOWN_IMAGE_REGEX.findAll(rawText).toList()
+            if (matches.isEmpty()) continue
+
+            val sb = StringBuilder()
+            var lastIdx = 0
+            var replacedAny = false
+            for (match in matches) {
+                sb.append(Entities.escape(rawText.substring(lastIdx, match.range.first)))
+                val alt = match.groupValues[1].trim()
+                val target = match.groupValues[2].trim()
+                val isGifHint = alt.equals("gif", ignoreCase = true) || target.startsWith("giphy|", ignoreCase = true)
+                val resolvedUrl = resolveEmbeddedMediaUrl(target, isGifHint, mediaMetadata)
+                if (resolvedUrl != null) {
+                    val isGif = isGifHint || resolvedUrl.contains(".gif", ignoreCase = true)
+                    val label = if (isGif) "&lt;gif&gt;" else "&lt;image&gt;"
+                    val escapedUrl = Entities.escape(resolvedUrl)
+                    sb.append("<a href=\"$escapedUrl\">$label</a>")
+                    replacedAny = true
+                } else {
+                    sb.append(Entities.escape(match.value))
+                }
+                lastIdx = match.range.last + 1
+            }
+            if (replacedAny) {
+                sb.append(Entities.escape(rawText.substring(lastIdx)))
+                textNode.after(sb.toString())
+                textNode.remove()
+            }
+        }
 
         // 1. Process Giphy links first
         val giphyLinks = doc.select("a[href*=giphy.com]")
@@ -136,11 +207,23 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
 
         // 2. Find all image/gif links
         val allLinks = doc.select("a")
-        val imageOrGifLinks = mutableListOf<org.jsoup.nodes.Element>()
+        val imageOrGifLinks = mutableListOf<Element>()
         for (a in allLinks) {
-            val href = a.attr("href")
+            var href = a.attr("href")
             val text = a.text().trim()
             val wrapsImage = a.select("img").isNotEmpty()
+
+            // Rewrite preview.redd.it gif-as-mp4 links to animated .gif URLs so inline ImageView can render them
+            if (href.contains("preview.redd.it", ignoreCase = true) &&
+                href.contains(".gif", ignoreCase = true) &&
+                href.contains("format=mp4", ignoreCase = true)
+            ) {
+                val segment = href.substringAfter("preview.redd.it/").substringBefore("?")
+                val mediaId = segment.substringBeforeLast(".")
+                val metadataGif = mediaMetadata?.items?.find { it.id == mediaId }?.image?.gif
+                href = metadataGif ?: "https://i.redd.it/$mediaId.gif"
+                a.attr("href", href)
+            }
 
             val isImageLink = LinkUtil.getLinkType(href) in listOf(
                 MediaType.IMAGE,
@@ -149,11 +232,23 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
                 MediaType.REDDIT_GIF
             ) || href.contains("giphy.com")
 
-            val isGiphyOrRedditImage = (text == "<image>" || text == "<gif>" || wrapsImage) && isImageLink
+            val isRedditHostedImage = href.contains("preview.redd.it", ignoreCase = true) ||
+                href.contains("i.redd.it", ignoreCase = true)
+            val isBareUrlText = text.equals(href, ignoreCase = true) ||
+                text.startsWith("http://", ignoreCase = true) ||
+                text.startsWith("https://", ignoreCase = true)
+
+            val isGiphyOrRedditImage = (
+                text == "<image>" ||
+                    text == "<gif>" ||
+                    wrapsImage ||
+                    isRedditHostedImage ||
+                    isBareUrlText
+                ) && isImageLink
 
             if (isGiphyOrRedditImage) {
-                if (text != "<image>" && text != "<gif>") {
-                    if (href.contains(".gif") || href.contains("giphy.com")) {
+                if (text != "<image>" && text != "<gif>" && (wrapsImage || isBareUrlText || text.isEmpty())) {
+                    if (href.contains(".gif", ignoreCase = true) || href.contains("giphy.com", ignoreCase = true)) {
                         a.text("<gif>")
                     } else {
                         a.text("<image>")
@@ -163,12 +258,70 @@ class HtmlParser(private val defaultDispatcher: CoroutineDispatcher) {
             }
         }
 
-        // 3. For each image/gif link, append "<expand all>" link after it
-        for (a in imageOrGifLinks) {
-            a.after(" <a href=\"expand_all:\">&lt;expand all&gt;</a>")
+        // 3. For each image/gif link, append "<expand all>" link after it when enabled
+        if (includeExpandAll) {
+            for (a in imageOrGifLinks) {
+                a.after(" <a href=\"expand_all:\">&lt;expand all&gt;</a>")
+            }
         }
 
         return doc.body().html()
+    }
+
+    private fun collectTextNodes(element: Element, out: MutableList<TextNode>) {
+        for (node in element.childNodes()) {
+            when (node) {
+                is TextNode -> out.add(node)
+                is Element -> {
+                    val tag = node.tagName().lowercase()
+                    if (tag != "pre" && tag != "code" && tag != "a") {
+                        collectTextNodes(node, out)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun resolveEmbeddedMediaUrl(
+        idOrUrl: String,
+        isGifHint: Boolean,
+        mediaMetadata: MediaMetadata?
+    ): String? {
+        val metadataItem = mediaMetadata?.items?.find { it.id == idOrUrl }
+        if (metadataItem != null) {
+            val resolved = metadataItem.image?.gif
+                ?: metadataItem.image?.url
+                ?: metadataItem.image?.mp4
+                ?: metadataItem.previews?.lastOrNull()?.url
+            if (!resolved.isNullOrBlank()) {
+                return resolved.replace("&amp;", "&")
+            }
+        }
+
+        if (idOrUrl.startsWith("http://", ignoreCase = true) || idOrUrl.startsWith("https://", ignoreCase = true)) {
+            return idOrUrl
+        }
+
+        if (idOrUrl.startsWith("giphy|", ignoreCase = true)) {
+            val giphyId = idOrUrl.substringAfter("giphy|").substringBefore("|").trim()
+            if (giphyId.isNotEmpty()) {
+                return LinkUtil.getGiphyGifUrl(giphyId)
+            }
+        }
+
+        if (idOrUrl.startsWith("emote|", ignoreCase = true)) {
+            val parts = idOrUrl.split("|")
+            if (parts.size >= 3) {
+                return "https://reddit-econ-prod-assets-permanent.s3.amazonaws.com/asset-manager/${parts[1]}/${parts[2]}.png"
+            }
+        }
+
+        if (REDDIT_MEDIA_ID_REGEX.matches(idOrUrl)) {
+            val ext = if (isGifHint) "gif" else "jpeg"
+            return "https://i.redd.it/$idOrUrl.$ext"
+        }
+
+        return null
     }
 
     private fun fromHtml(html: String): CharSequence {

@@ -6,22 +6,22 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class Gif(
     @Json(name = "id")
-    val id: String,
+    val id: String = "",
 
     @Json(name = "createDate")
-    val createDate: Int,
+    val createDate: Int? = null,
 
     @Json(name = "hasAudio")
-    val hasAudio: Boolean,
+    val hasAudio: Boolean? = null,
 
     @Json(name = "width")
-    val width: Int,
+    val width: Int? = null,
 
     @Json(name = "height")
-    val height: Int,
+    val height: Int? = null,
 
     @Json(name = "duration")
-    val duration: Double,
+    val duration: Double? = null,
 
     @Json(name = "urls")
     val urls: Urls

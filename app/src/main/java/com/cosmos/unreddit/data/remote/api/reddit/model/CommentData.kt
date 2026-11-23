@@ -81,7 +81,10 @@ class CommentData(
     val linkPermalink: String?,
 
     @Json(name = "link_author")
-    val linkAuthor: String?
+    val linkAuthor: String?,
+
+    @Json(name = "media_metadata")
+    val mediaMetadata: MediaMetadata? = null
 ) {
     val scoreString: String
         get() = if (scoreHidden) "12345" else score.formatNumber()

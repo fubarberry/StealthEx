@@ -194,7 +194,7 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
             muteVideo,
             onMediaClick = {
                 viewerViewModel.hideControls = !viewerViewModel.hideControls
-                showControls(!binding.controls.isVisible)
+                showControls(!viewerViewModel.hideControls)
             },
             showControls = { show ->
                 if (!show || !viewerViewModel.hideControls) {
@@ -219,6 +219,7 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
                 override fun onPageSelected(position: Int) {
                     super.onPageSelected(position)
                     viewerViewModel.setSelectedPage(position)
+                    mediaAdapter.setActivePage(position)
                 }
             })
         }
@@ -500,9 +501,7 @@ class MediaViewerFragment : FullscreenBottomSheetFragment() {
         val duration = 250L
 
         binding.run {
-            if (controls.isVisible != show) {
-                controls.showWithAlpha(show, duration)
-            }
+            controls.isVisible = true
 
             if (viewerViewModel.isMultiMedia.value) {
                 if (pageCounter.isVisible != show) {

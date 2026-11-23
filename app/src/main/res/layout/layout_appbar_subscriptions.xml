@@ -32,6 +32,30 @@
         android:visibility="gone"/>
 
     <com.cosmos.unreddit.ui.common.widget.CardButton
+        android:id="@+id/new_multireddit_card"
+        android:layout_width="@dimen/app_bar_button_size"
+        android:layout_height="@dimen/app_bar_button_size"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/go_to_subreddit_card"
+        android:layout_marginEnd="@dimen/app_bar_margin"
+        app:icon="@drawable/ic_add"
+        android:contentDescription="@string/dialog_new_multireddit_button"
+        android:visibility="gone"
+        style="@style/CardButtonStyle" />
+
+    <com.cosmos.unreddit.ui.common.widget.CardButton
+        android:id="@+id/go_to_subreddit_card"
+        android:layout_width="@dimen/app_bar_button_size"
+        android:layout_height="@dimen/app_bar_button_size"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/search_card"
+        android:layout_marginEnd="@dimen/app_bar_margin"
+        app:icon="@drawable/ic_reddit"
+        style="@style/CardButtonStyle" />
+
+    <com.cosmos.unreddit.ui.common.widget.CardButton
         android:id="@+id/search_card"
         android:layout_width="@dimen/app_bar_button_size"
         android:layout_height="@dimen/app_bar_button_size"

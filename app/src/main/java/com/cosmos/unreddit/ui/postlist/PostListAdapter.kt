@@ -1,20 +1,40 @@
 package com.cosmos.unreddit.ui.postlist
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.cosmos.unreddit.data.model.MediaType
 import com.cosmos.unreddit.data.model.PostType
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.preferences.ContentPreferences
 import com.cosmos.unreddit.data.repository.PostListRepository
+import com.cosmos.unreddit.databinding.ItemPostCompactBinding
+import com.cosmos.unreddit.databinding.ItemPostFullscreenBinding
 import com.cosmos.unreddit.databinding.ItemPostImageBinding
 import com.cosmos.unreddit.databinding.ItemPostLinkBinding
 import com.cosmos.unreddit.databinding.ItemPostTextBinding
-import com.cosmos.unreddit.databinding.ItemPostCompactBinding
 import com.cosmos.unreddit.ui.common.widget.RedditView
 import com.cosmos.unreddit.util.ClickableMovementMethod
+import com.cosmos.unreddit.util.ExoPlayerHelper
+import com.cosmos.unreddit.util.LinkUtil
+import com.cosmos.unreddit.util.LinkUtil.https
+import com.google.android.exoplayer2.ExoPlayer
+import com.google.android.exoplayer2.PlaybackException
+import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.Tracks
+import com.google.android.exoplayer2.source.MergingMediaSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class PostListAdapter(
     private val repository: PostListRepository,
@@ -36,6 +56,8 @@ class PostListAdapter(
         fun onLinkClick(post: PostEntity)
 
         fun onSaveClick(post: PostEntity)
+
+        fun onHideClick(post: PostEntity) {}
     }
 
     interface Listener {
@@ -43,9 +65,13 @@ class PostListAdapter(
 
         fun onMediaClick(position: Int)
 
+        fun onFullscreenVideoClick(position: Int) {}
+
         fun onMenuClick(position: Int)
 
         fun onSaveClick(position: Int)
+
+        fun onHideClick(position: Int) {}
     }
 
     private val clickableMovementMethod = ClickableMovementMethod(
@@ -79,6 +105,21 @@ class PostListAdapter(
             ) {
                 field = value
                 notifyDataSetChanged()
+                if (layoutType == 2) {
+                    scheduleFullscreenVideoCheck()
+                }
+            }
+        }
+
+    var layoutType: Int = 0
+        set(value) {
+            if (field != value) {
+                field = value
+                useCompactLayout = (value == 1)
+                if (value != 2) {
+                    stopActiveVideo()
+                }
+                notifyDataSetChanged()
             }
         }
 
@@ -86,7 +127,12 @@ class PostListAdapter(
         set(value) {
             if (field != value) {
                 field = value
-                notifyDataSetChanged()
+                val targetType = if (value) 1 else 0
+                if (layoutType != 2 && layoutType != targetType) {
+                    layoutType = targetType
+                } else {
+                    notifyDataSetChanged()
+                }
             }
         }
 
@@ -97,6 +143,106 @@ class PostListAdapter(
                 notifyDataSetChanged()
             }
         }
+
+    var isVideoMuted: Boolean = false
+        set(value) {
+            field = value
+            exoPlayer?.volume = if (value) 0f else 1f
+        }
+
+    private val adapterScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var videoResolveJob: Job? = null
+    private val activePlayers = mutableListOf<ExoPlayer>()
+    private var exoPlayer: ExoPlayer? = null
+    private var exoPlayerHelper: ExoPlayerHelper? = null
+    private var activeVideoHolder: PostViewHolder.FullscreenPostViewHolder? = null
+    private var attachedRecyclerView: RecyclerView? = null
+    private var isHostPaused: Boolean = false
+    private val revealedPostIds = mutableSetOf<String>()
+
+    private fun shouldShowPreviewForPost(post: PostEntity): Boolean {
+        return post.shouldShowPreview(contentPreferences) || revealedPostIds.contains(post.id)
+    }
+
+    private val checkVideoRunnable: Runnable = object : Runnable {
+        override fun run() {
+            val recyclerView = attachedRecyclerView ?: return
+            if (layoutType == 2 && !isHostPaused && recyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+                if (recyclerView.itemAnimator?.isRunning == true) {
+                    recyclerView.itemAnimator?.isRunning {
+                        attachedRecyclerView?.let { rv ->
+                            rv.removeCallbacks(this)
+                            rv.post(this)
+                        }
+                    }
+                }
+                checkAndPlayCurrentFullscreenVideo()
+            }
+        }
+    }
+
+    private val dataObserver = object : RecyclerView.AdapterDataObserver() {
+        override fun onChanged() {
+            if (layoutType == 2) scheduleFullscreenVideoCheck()
+        }
+
+        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+            if (layoutType == 2) scheduleFullscreenVideoCheck()
+        }
+
+        override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
+            if (layoutType == 2) scheduleFullscreenVideoCheck()
+        }
+
+        override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
+            if (layoutType == 2) scheduleFullscreenVideoCheck()
+        }
+    }
+
+    private fun scheduleFullscreenVideoCheck() {
+        val recyclerView = attachedRecyclerView ?: return
+        recyclerView.removeCallbacks(checkVideoRunnable)
+        recyclerView.post(checkVideoRunnable)
+        if (recyclerView.itemAnimator?.isRunning == true) {
+            recyclerView.itemAnimator?.isRunning {
+                attachedRecyclerView?.let { rv ->
+                    rv.removeCallbacks(checkVideoRunnable)
+                    rv.post(checkVideoRunnable)
+                }
+            }
+        }
+    }
+
+    private val layoutChangeListener = View.OnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+        val recyclerView = view as? RecyclerView ?: return@OnLayoutChangeListener
+        if (layoutType == 2 && !isHostPaused && recyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+            if (activeVideoHolder == null || activeVideoHolder?.itemView?.parent == null) {
+                scheduleFullscreenVideoCheck()
+            }
+        }
+    }
+
+    private val scrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            if (layoutType == 2) {
+                if (recyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+                    scheduleFullscreenVideoCheck()
+                } else {
+                    stopIfActiveHolderNotPrimary(recyclerView)
+                }
+            }
+        }
+
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            if (layoutType == 2) {
+                if (recyclerView.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+                    scheduleFullscreenVideoCheck()
+                } else {
+                    stopIfActiveHolderNotPrimary(recyclerView)
+                }
+            }
+        }
+    }
 
     private val listener = object : Listener {
         override fun onClick(position: Int, isLong: Boolean) {
@@ -113,14 +259,73 @@ class PostListAdapter(
         override fun onMediaClick(position: Int) {
             getItem(position)?.let {
                 setPostSeen(position, it)
+                if (
+                    layoutType == 2 &&
+                    !shouldShowPreviewForPost(it) &&
+                    (it.type == PostType.IMAGE || it.type == PostType.VIDEO)
+                ) {
+                    revealedPostIds.add(it.id)
+                    val holder = findFullscreenHolderForPost(position, it)
+                    if (holder != null) {
+                        holder.bind(it, contentPreferences, isVideoMuted, isRevealed = true)
+                        if (it.type == PostType.VIDEO && canPlayInline(it)) {
+                            isHostPaused = false
+                            startInlineVideo(holder, it)
+                        }
+                    } else {
+                        notifyItemChanged(position)
+                    }
+                    return
+                }
                 when (it.type) {
                     PostType.IMAGE -> postClickListener.onImageClick(it)
-                    PostType.LINK -> postClickListener.onLinkClick(it)
-                    PostType.VIDEO -> postClickListener.onVideoClick(it)
+                    PostType.LINK -> {
+                        if (LinkUtil.isTwitterStatusLink(it.url)) {
+                            val cached = com.cosmos.unreddit.util.TweetResolver.getCachedTweet(it.url)
+                            if (cached != null && cached.hasMedia) {
+                                onLinkClickListener?.onLinkClick("tweet_media:${it.url}")
+                            } else {
+                                postClickListener.onLinkClick(it)
+                            }
+                        } else {
+                            postClickListener.onLinkClick(it)
+                        }
+                    }
+                    PostType.VIDEO -> {
+                        if (layoutType == 2 && canPlayInline(it) && shouldShowPreviewForPost(it)) {
+                            val holder = findFullscreenHolderForPost(position, it)
+                            if (holder != null && !holder.inlinePlaybackFailed) {
+                                isHostPaused = false
+                                if (activeVideoHolder === holder && videoResolveJob?.isActive == true) {
+                                    return
+                                }
+                                val currentPlayer = exoPlayer
+                                if (
+                                    activeVideoHolder === holder &&
+                                    currentPlayer != null &&
+                                    holder.binding.videoPostPlayer.player === currentPlayer
+                                ) {
+                                    holder.binding.videoPostPlayer.isVisible = true
+                                    holder.binding.videoPostPlayer.showController()
+                                } else {
+                                    startInlineVideo(holder, it)
+                                }
+                                return
+                            }
+                        }
+                        postClickListener.onVideoClick(it)
+                    }
                     else -> {
                         // ignore
                     }
                 }
+            }
+        }
+
+        override fun onFullscreenVideoClick(position: Int) {
+            getItem(position)?.let {
+                setPostSeen(position, it)
+                postClickListener.onVideoClick(it)
             }
         }
 
@@ -135,6 +340,12 @@ class PostListAdapter(
                 postClickListener.onSaveClick(it)
                 it.saved = !it.saved
                 notifyItemChanged(position, it)
+            }
+        }
+
+        override fun onHideClick(position: Int) {
+            getItem(position)?.let {
+                postClickListener.onHideClick(it)
             }
         }
     }
@@ -184,21 +395,29 @@ class PostListAdapter(
                 ItemPostCompactBinding.inflate(inflater, parent, false),
                 listener
             )
+            // Fullscreen post
+            VIEW_TYPE_FULLSCREEN -> PostViewHolder.FullscreenPostViewHolder(
+                ItemPostFullscreenBinding.inflate(inflater, parent, false),
+                listener,
+                onLinkClickListener
+            ) { muted ->
+                isVideoMuted = muted
+            }
             else -> throw IllegalArgumentException("Unknown type $viewType")
         }
     }
 
     override fun getItemViewType(position: Int): Int {
         val item = getItem(position) ?: return -1
-        return if (useCompactLayout) {
-            when (item.type) {
+        return when (layoutType) {
+            2 -> VIEW_TYPE_FULLSCREEN
+            1 -> when (item.type) {
                 PostType.IMAGE -> VIEW_TYPE_COMPACT_IMAGE
                 PostType.VIDEO -> VIEW_TYPE_COMPACT_VIDEO
                 PostType.LINK -> VIEW_TYPE_COMPACT_LINK
                 PostType.TEXT -> VIEW_TYPE_COMPACT_TEXT
             }
-        } else {
-            item.type.value
+            else -> item.type.value
         }
     }
 
@@ -250,6 +469,20 @@ class PostListAdapter(
                 contentPreferences,
                 leftHandedMode
             )
+            // Fullscreen post
+            VIEW_TYPE_FULLSCREEN -> {
+                val fullscreenHolder = holder as PostViewHolder.FullscreenPostViewHolder
+                if (activeVideoHolder === fullscreenHolder) {
+                    stopActiveVideo()
+                }
+                fullscreenHolder.bind(
+                    item,
+                    contentPreferences,
+                    isVideoMuted,
+                    isRevealed = revealedPostIds.contains(item.id)
+                )
+                scheduleFullscreenVideoCheck()
+            }
             else -> throw IllegalArgumentException("Unknown type")
         }
     }
@@ -277,6 +510,374 @@ class PostListAdapter(
         }
     }
 
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        attachedRecyclerView = recyclerView
+        registerAdapterDataObserver(dataObserver)
+        recyclerView.addOnScrollListener(scrollListener)
+        recyclerView.addOnLayoutChangeListener(layoutChangeListener)
+    }
+
+    override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+        if (holder is PostViewHolder.FullscreenPostViewHolder) {
+            scheduleFullscreenVideoCheck()
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: RecyclerView.ViewHolder) {
+        super.onViewDetachedFromWindow(holder)
+        if (holder === activeVideoHolder) {
+            stopActiveVideo()
+        }
+        if (layoutType == 2 && holder is PostViewHolder.FullscreenPostViewHolder) {
+            scheduleFullscreenVideoCheck()
+        }
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        runCatching { unregisterAdapterDataObserver(dataObserver) }
+        recyclerView.removeCallbacks(checkVideoRunnable)
+        recyclerView.removeOnScrollListener(scrollListener)
+        recyclerView.removeOnLayoutChangeListener(layoutChangeListener)
+        if (attachedRecyclerView === recyclerView) {
+            attachedRecyclerView = null
+        }
+        releasePlayer()
+    }
+
+    private fun findFullscreenHolderForPost(
+        position: Int,
+        post: PostEntity
+    ): PostViewHolder.FullscreenPostViewHolder? {
+        val recyclerView = attachedRecyclerView ?: return null
+        for (i in 0 until recyclerView.childCount) {
+            val child = recyclerView.getChildAt(i) ?: continue
+            val holder = recyclerView.getChildViewHolder(child) as? PostViewHolder.FullscreenPostViewHolder ?: continue
+            if (holder.boundPost?.id == post.id || holder.bindingAdapterPosition == position) {
+                return holder
+            }
+        }
+        return null
+    }
+
+    private fun findBestFullscreenHolder(recyclerView: RecyclerView): Pair<PostViewHolder.FullscreenPostViewHolder?, Int> {
+        var bestHolder: PostViewHolder.FullscreenPostViewHolder? = null
+        var maxVisibleHeight = 0
+
+        for (i in 0 until recyclerView.childCount) {
+            val child = recyclerView.getChildAt(i) ?: continue
+            val holder = recyclerView.getChildViewHolder(child) as? PostViewHolder.FullscreenPostViewHolder ?: continue
+            if (holder.bindingAdapterPosition == RecyclerView.NO_POSITION) continue
+            val visibleTop = maxOf(0, child.top)
+            val visibleBottom = minOf(recyclerView.height, child.bottom)
+            val visibleHeight = (visibleBottom - visibleTop).coerceAtLeast(0)
+            if (visibleHeight > maxVisibleHeight) {
+                maxVisibleHeight = visibleHeight
+                bestHolder = holder
+            }
+        }
+        return bestHolder to maxVisibleHeight
+    }
+
+    private fun stopIfActiveHolderNotPrimary(recyclerView: RecyclerView) {
+        val currentActive = activeVideoHolder ?: return
+        val (bestHolder, maxVisibleHeight) = findBestFullscreenHolder(recyclerView)
+        if (bestHolder !== currentActive || maxVisibleHeight < recyclerView.height / 2) {
+            stopActiveVideo()
+        }
+    }
+
+    private fun canPlayInline(post: PostEntity): Boolean {
+        if (post.type != PostType.VIDEO || post.mediaUrl.isBlank()) return false
+        return post.mediaType in PLAYABLE_MEDIA_TYPES
+    }
+
+    private fun checkAndPlayCurrentFullscreenVideo() {
+        val recyclerView = attachedRecyclerView ?: return
+        if (layoutType != 2 || isHostPaused || !recyclerView.isShown || recyclerView.height <= 0) {
+            stopActiveVideo()
+            return
+        }
+
+        val (targetHolder, maxVisibleHeight) = findBestFullscreenHolder(recyclerView)
+        val post = targetHolder?.boundPost
+        if (
+            targetHolder != null &&
+            maxVisibleHeight >= recyclerView.height / 2 &&
+            post != null &&
+            canPlayInline(post) &&
+            shouldShowPreviewForPost(post)
+        ) {
+            if (targetHolder.inlinePlaybackFailed) {
+                return
+            }
+            if (activeVideoHolder === targetHolder) {
+                if (videoResolveJob?.isActive == true) {
+                    return
+                }
+                val currentPlayer = exoPlayer
+                if (
+                    currentPlayer != null &&
+                    targetHolder.binding.videoPostPlayer.player === currentPlayer &&
+                    targetHolder.binding.videoPostPlayer.isVisible
+                ) {
+                    if (!currentPlayer.isPlaying && currentPlayer.playWhenReady && currentPlayer.playbackState == Player.STATE_READY) {
+                        currentPlayer.play()
+                    }
+                    return
+                }
+            }
+            startInlineVideo(targetHolder, post)
+        } else {
+            stopActiveVideo()
+        }
+    }
+
+    private fun startInlineVideo(
+        holder: PostViewHolder.FullscreenPostViewHolder,
+        post: PostEntity
+    ) {
+        if (isHostPaused || !canPlayInline(post)) {
+            stopActiveVideo()
+            return
+        }
+
+        stopActiveVideo()
+        activeVideoHolder = holder
+        holder.inlinePlaybackFailed = false
+        holder.binding.loadingCradle.isVisible = true
+        holder.binding.buttonTypeIndicator.isVisible = false
+        holder.binding.videoPostPlayer.isVisible = true
+
+        videoResolveJob = adapterScope.launch {
+            val context = holder.binding.root.context.applicationContext
+            val httpsUrl = post.mediaUrl.https
+            val resolved = withContext(Dispatchers.IO) {
+                when (post.mediaType) {
+                    MediaType.IMGUR_GIF -> LinkUtil.getImgurVideo(httpsUrl) to null
+                    MediaType.REDGIFS -> {
+                        val resolvedUrl = repository.resolveRedgifsUrl(LinkUtil.getGfycatId(httpsUrl))
+                        (resolvedUrl ?: httpsUrl) to null
+                    }
+                    MediaType.GFYCAT -> {
+                        val resolvedUrl = repository.resolveGfycatUrl(LinkUtil.getGfycatId(httpsUrl))
+                        (resolvedUrl ?: httpsUrl) to null
+                    }
+                    MediaType.STREAMABLE -> {
+                        val resolvedUrl = repository.resolveStreamableUrl(LinkUtil.getStreamableShortcode(httpsUrl))
+                        (resolvedUrl ?: httpsUrl) to null
+                    }
+                    MediaType.REDDIT_VIDEO, MediaType.REDDIT_GIF, MediaType.VIDEO, MediaType.IMGUR_VIDEO -> {
+                        if (httpsUrl.contains("redgifs.com", ignoreCase = true) && !httpsUrl.contains("signature=")) {
+                            val resolvedUrl = repository.resolveRedgifsUrl(LinkUtil.getGfycatId(httpsUrl))
+                            (resolvedUrl ?: httpsUrl) to null
+                        } else if (httpsUrl.contains("v.redd.it") && !httpsUrl.contains(".mpd") && !httpsUrl.contains(".m3u8")) {
+                            (LinkUtil.getRedditVideoMpdUrl(httpsUrl) ?: httpsUrl) to null
+                        } else {
+                            httpsUrl to null
+                        }
+                    }
+                    else -> httpsUrl to null
+                }
+            }
+
+            if (!isActive || isHostPaused || activeVideoHolder !== holder) return@launch
+
+            val (videoUrl, audioUrl) = resolved
+            if (videoUrl.isBlank()) {
+                holder.inlinePlaybackFailed = true
+                holder.binding.loadingCradle.isVisible = false
+                holder.binding.videoPostPlayer.keepScreenOn = false
+                holder.binding.videoPostPlayer.isVisible = false
+                holder.binding.buttonTypeIndicator.isVisible = true
+                return@launch
+            }
+
+            val helper = exoPlayerHelper ?: ExoPlayerHelper(context).also { exoPlayerHelper = it }
+            val parsedUrl = videoUrl.toHttpUrlOrNull()
+            if (parsedUrl != null && parsedUrl.host.contains("redgifs", ignoreCase = true)) {
+                val requestProperties = parsedUrl
+                    .queryParameterNames
+                    .associateWith { parsedUrl.queryParameter(it) ?: "" }
+                helper.setRequestProperties(requestProperties)
+            } else {
+                helper.setRequestProperties(emptyMap())
+            }
+
+            val player = ExoPlayer.Builder(context)
+                .setMediaSourceFactory(helper.defaultMediaSourceFactory)
+                .build()
+            activePlayers.add(player)
+            exoPlayer = player
+
+            var currentVideoUrl: String = videoUrl
+            var currentAudioUrl: String? = audioUrl
+            var triedRedditFallback = false
+
+            fun prepareSource(vUrl: String, aUrl: String?) {
+                val videoItem = helper.getMediaItem(vUrl)
+                if (aUrl != null) {
+                    val videoSource = helper.getMediaSource(videoItem)
+                    val audioSource = helper.getMediaSource(aUrl)
+                    player.setMediaSource(MergingMediaSource(videoSource, audioSource))
+                } else {
+                    player.setMediaSource(helper.getMediaSource(videoItem))
+                }
+                player.prepare()
+                player.play()
+            }
+
+            player.addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        updateKeepScreenOn(holder, player)
+                    }
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        when (playbackState) {
+                            Player.STATE_BUFFERING -> {
+                                holder.binding.loadingCradle.isVisible = true
+                            }
+                            Player.STATE_READY -> {
+                                holder.inlinePlaybackFailed = false
+                                holder.binding.loadingCradle.isVisible = false
+                                holder.binding.videoPostPlayer.isVisible = true
+                                holder.binding.buttonTypeIndicator.isVisible = false
+                            }
+                            else -> {}
+                        }
+                        updateKeepScreenOn(holder, player)
+                    }
+                }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        var hasAudioTrack = false
+                        val groups = tracks.groups
+                        for (i in 0 until groups.size) {
+                            for (j in 0 until groups[i].length) {
+                                val mime = groups[i].getTrackFormat(j).sampleMimeType
+                                if (mime != null && mime.contains("audio")) {
+                                    hasAudioTrack = true
+                                    break
+                                }
+                            }
+                        }
+                        holder.binding.buttonMute.isVisible = hasAudioTrack
+                        holder.binding.buttonMute.isChecked = isVideoMuted
+                    }
+                }
+
+                override fun onPlayerError(error: PlaybackException) {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        if (currentAudioUrl != null) {
+                            currentAudioUrl = null
+                            prepareSource(currentVideoUrl, null)
+                            return
+                        }
+                        if (!triedRedditFallback && httpsUrl.contains("v.redd.it")) {
+                            triedRedditFallback = true
+                            adapterScope.launch fallbackLaunch@{
+                                val fallback = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        LinkUtil.resolveMediaUrls(httpsUrl, Dispatchers.IO)
+                                    }.getOrNull()
+                                }
+                                if (!isActive || isHostPaused || activeVideoHolder !== holder || exoPlayer !== player) {
+                                    return@fallbackLaunch
+                                }
+                                val fallbackVideo = fallback?.videoUrl?.takeIf { it.isNotBlank() && it != currentVideoUrl }
+                                    ?: httpsUrl.takeIf { it != currentVideoUrl }
+                                if (fallbackVideo != null) {
+                                    currentVideoUrl = fallbackVideo
+                                    currentAudioUrl = if (post.mediaType != MediaType.REDDIT_GIF) fallback?.audioUrl else null
+                                    prepareSource(currentVideoUrl, currentAudioUrl)
+                                } else {
+                                    holder.inlinePlaybackFailed = true
+                                    holder.binding.loadingCradle.isVisible = false
+                                    holder.binding.videoPostPlayer.keepScreenOn = false
+                                    holder.binding.videoPostPlayer.player = null
+                                    holder.binding.videoPostPlayer.isVisible = false
+                                    holder.binding.buttonTypeIndicator.isVisible = true
+                                }
+                            }
+                            return
+                        }
+                        holder.inlinePlaybackFailed = true
+                        holder.binding.loadingCradle.isVisible = false
+                        holder.binding.videoPostPlayer.keepScreenOn = false
+                        holder.binding.videoPostPlayer.player = null
+                        holder.binding.videoPostPlayer.isVisible = false
+                        holder.binding.buttonTypeIndicator.isVisible = true
+                    }
+                }
+            })
+
+            holder.binding.videoPostPlayer.isVisible = true
+            holder.binding.videoPostPlayer.player = player
+            player.repeatMode = Player.REPEAT_MODE_ALL
+            player.volume = if (isVideoMuted) 0f else 1f
+            prepareSource(currentVideoUrl, currentAudioUrl)
+        }
+    }
+
+    private fun updateKeepScreenOn(
+        holder: PostViewHolder.FullscreenPostViewHolder,
+        player: ExoPlayer
+    ) {
+        holder.binding.videoPostPlayer.keepScreenOn =
+            player.isPlaying ||
+            (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
+    }
+
+    fun stopActiveVideo() {
+        videoResolveJob?.cancel()
+        videoResolveJob = null
+        activeVideoHolder?.let { holder ->
+            holder.binding.videoPostPlayer.keepScreenOn = false
+            holder.binding.videoPostPlayer.player = null
+            holder.binding.videoPostPlayer.isVisible = false
+            holder.binding.loadingCradle.isVisible = false
+            holder.binding.buttonMute.isVisible = false
+            holder.binding.buttonTypeIndicator.isVisible = holder.boundPost?.type == PostType.VIDEO
+        }
+        activeVideoHolder = null
+        exoPlayer?.stop()
+        exoPlayer?.release()
+        exoPlayer = null
+        if (activePlayers.isNotEmpty()) {
+            for (p in activePlayers) {
+                runCatching {
+                    p.stop()
+                    p.release()
+                }
+            }
+            activePlayers.clear()
+        }
+    }
+
+    fun pausePlayback() {
+        isHostPaused = true
+        attachedRecyclerView?.removeCallbacks(checkVideoRunnable)
+        stopActiveVideo()
+    }
+
+    fun resumePlayback() {
+        isHostPaused = false
+        if (layoutType == 2) {
+            scheduleFullscreenVideoCheck()
+        }
+    }
+
+    fun releasePlayer() {
+        attachedRecyclerView?.removeCallbacks(checkVideoRunnable)
+        stopActiveVideo()
+    }
+
     private fun setPostSeen(position: Int, post: PostEntity) {
         post.seen = true
         notifyItemChanged(position, post)
@@ -287,6 +888,18 @@ class PostListAdapter(
         private const val VIEW_TYPE_COMPACT_VIDEO = 12
         private const val VIEW_TYPE_COMPACT_LINK = 13
         private const val VIEW_TYPE_COMPACT_TEXT = 14
+        private const val VIEW_TYPE_FULLSCREEN = 20
+
+        private val PLAYABLE_MEDIA_TYPES = setOf(
+            MediaType.REDDIT_VIDEO,
+            MediaType.REDDIT_GIF,
+            MediaType.VIDEO,
+            MediaType.IMGUR_VIDEO,
+            MediaType.IMGUR_GIF,
+            MediaType.REDGIFS,
+            MediaType.GFYCAT,
+            MediaType.STREAMABLE
+        )
 
         private val POST_COMPARATOR = object : DiffUtil.ItemCallback<PostEntity>() {
             override fun areItemsTheSame(oldItem: PostEntity, newItem: PostEntity): Boolean {

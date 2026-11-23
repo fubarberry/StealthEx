@@ -6,50 +6,50 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class Subreddit(
     @Json(name = "banner_img")
-    val bannerImg: String?,
+    val bannerImg: String? = null,
 
     @Json(name = "community_icon")
-    val communityIcon: String?,
+    val communityIcon: String? = null,
 
     @Json(name = "icon_color")
-    val iconColor: String,
+    val iconColor: String? = "",
 
     @Json(name = "header_img")
-    val headerImg: String?,
+    val headerImg: String? = null,
 
     @Json(name = "title")
-    val title: String,
+    val title: String? = "",
 
     @Json(name = "over_18")
-    val over18: Boolean,
+    val over18: Boolean = false,
 
     @Json(name = "primary_color")
-    val primaryColor: String,
+    val primaryColor: String? = "",
 
     @Json(name = "icon_img")
-    val iconImg: String,
+    val iconImg: String? = "",
 
     @Json(name = "description")
-    val description: String,
+    val description: String? = "",
 
     @Json(name = "subscribers")
-    val subscribers: Int,
+    val subscribers: Int = 0,
 
     @Json(name = "display_name_prefixed")
-    val displayNamePrefixed: String,
+    val displayNamePrefixed: String? = "",
 
     @Json(name = "key_color")
-    val keyColor: String,
+    val keyColor: String? = "",
 
     @Json(name = "name")
-    val name: String,
+    val name: String? = "",
 
     @Json(name = "is_default_banner")
-    val isDefaultBanner: Boolean,
+    val isDefaultBanner: Boolean = true,
 
     @Json(name = "url")
-    val url: String,
+    val url: String? = "",
 
     @Json(name = "public_description")
-    val publicDescription: String
+    val publicDescription: String? = ""
 )

@@ -7,6 +7,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.addCallback
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavDirections
 import androidx.navigation.NavOptions
 import androidx.navigation.fragment.findNavController
@@ -15,6 +16,7 @@ import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.ui.common.widget.RedditView
 import com.cosmos.unreddit.ui.linkmenu.LinkMenuFragment
+import com.cosmos.unreddit.ui.mediaviewer.MediaViewerFragment
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
 import com.cosmos.unreddit.ui.postlist.PostListAdapter
 import com.cosmos.unreddit.ui.postmenu.PostMenuFragment
@@ -64,19 +66,120 @@ open class BaseFragment : Fragment(), PostListAdapter.PostClickListener,
         findNavController().navigateUp()
     }
 
+    private val overlayLifecycleCallbacks = object : FragmentManager.FragmentLifecycleCallbacks() {
+        override fun onFragmentStarted(fm: FragmentManager, f: Fragment) {
+            if (f is PostDetailsFragment || f is MediaViewerFragment) {
+                onPauseFullscreenMedia()
+            }
+        }
+
+        override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
+            if (f is PostDetailsFragment || f is MediaViewerFragment) {
+                onPauseFullscreenMedia()
+            }
+        }
+
+        override fun onFragmentStopped(fm: FragmentManager, f: Fragment) {
+            if (f is PostDetailsFragment || f is MediaViewerFragment) {
+                syncFullscreenMediaPlayback()
+            }
+        }
+
+        override fun onFragmentViewDestroyed(fm: FragmentManager, f: Fragment) {
+            if (f is PostDetailsFragment || f is MediaViewerFragment) {
+                syncFullscreenMediaPlayback()
+            }
+        }
+
+        override fun onFragmentDetached(fm: FragmentManager, f: Fragment) {
+            if (f is PostDetailsFragment || f is MediaViewerFragment) {
+                syncFullscreenMediaPlayback()
+            }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        activity?.supportFragmentManager?.registerFragmentLifecycleCallbacks(
+            overlayLifecycleCallbacks,
+            true
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        syncFullscreenMediaPlayback()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        onPauseFullscreenMedia()
+    }
+
+    override fun onStop() {
+        activity?.supportFragmentManager?.unregisterFragmentLifecycleCallbacks(
+            overlayLifecycleCallbacks
+        )
+        super.onStop()
+        onPauseFullscreenMedia()
+    }
+
+    protected open fun onPauseFullscreenMedia() {}
+
+    protected open fun onResumeFullscreenMedia() {}
+
+    protected fun syncFullscreenMediaPlayback() {
+        if (!isResumed) {
+            onPauseFullscreenMedia()
+            return
+        }
+        if (hasActiveFullscreenOverlay()) {
+            onPauseFullscreenMedia()
+        } else {
+            onResumeFullscreenMedia()
+        }
+    }
+
+    protected fun hasActiveFullscreenOverlay(): Boolean {
+        return activity?.supportFragmentManager?.hasActiveFullscreenOverlay() == true
+    }
+
+    private fun FragmentManager.hasActiveFullscreenOverlay(): Boolean {
+        for (fragment in fragments) {
+            if (fragment is PostDetailsFragment || fragment is MediaViewerFragment) {
+                if (
+                    fragment.isAdded &&
+                    !fragment.isHidden &&
+                    !fragment.isRemoving &&
+                    fragment.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+                ) {
+                    return true
+                }
+            }
+            if (fragment.isAdded && fragment.childFragmentManager.hasActiveFullscreenOverlay()) {
+                return true
+            }
+        }
+        return false
+    }
+
     protected fun navigate(directions: NavDirections, navOptions: NavOptions = this.navOptions) {
+        onPauseFullscreenMedia()
         findNavController().navigate(directions, navOptions)
     }
 
     protected fun navigate(deepLink: Uri, navOptions: NavOptions = this.navOptions) {
+        onPauseFullscreenMedia()
         findNavController().navigate(deepLink, navOptions)
     }
 
     override fun onClick(post: PostEntity) {
+        onPauseFullscreenMedia()
         onClick(parentFragmentManager, post)
     }
 
     protected open fun onClick(fragmentManager: FragmentManager, post: PostEntity) {
+        onPauseFullscreenMedia()
         fragmentManager.beginTransaction()
             .setCustomAnimations(
                 R.anim.nav_enter_anim,
@@ -102,6 +205,7 @@ open class BaseFragment : Fragment(), PostListAdapter.PostClickListener,
     }
 
     override fun onImageClick(post: PostEntity) {
+        onPauseFullscreenMedia()
         viewModel?.insertPostInHistory(post.id)
         if (post.gallery.isNotEmpty()) {
             linkHandler.openGallery(post.gallery)
@@ -111,6 +215,7 @@ open class BaseFragment : Fragment(), PostListAdapter.PostClickListener,
     }
 
     override fun onVideoClick(post: PostEntity) {
+        onPauseFullscreenMedia()
         viewModel?.insertPostInHistory(post.id)
         linkHandler.openMedia(post.mediaUrl, post.mediaType)
     }
@@ -130,6 +235,10 @@ open class BaseFragment : Fragment(), PostListAdapter.PostClickListener,
 
     override fun onSaveClick(post: PostEntity) {
         viewModel?.toggleSavePost(post)
+    }
+
+    override fun onHideClick(post: PostEntity) {
+        viewModel?.hidePost(post)
     }
 
     open fun openSubreddit(subreddit: String) {

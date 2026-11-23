@@ -51,22 +51,19 @@ class RedditBackupManager @Inject constructor(
         val profiles = mutableListOf<Profile>()
 
         return runCatching {
-            withContext(ioDispatcher) {
+            val listing = withContext(ioDispatcher) {
                 appContext.contentResolver.openInputStream(uri)?.use { inputStream ->
                     inputStream.source().buffer().use { bufferedSource ->
                         adapter.fromJson(bufferedSource)
                     }
-                }
+                } ?: error("Unable to open Reddit backup file")
             }
-        }.onSuccess {
-            it?.let { listing ->
-                val subscriptions = mapSubredditsToSubscriptions(listing)
-                profiles.add(Profile("Reddit", subscriptions))
-
-                insertProfiles(profiles)
-            }
-        }.map {
-            profiles
+            val subscriptions = mapSubredditsToSubscriptions(listing)
+            profiles.add(Profile("Reddit", subscriptions))
+            insertProfiles(profiles)
+            profiles.toList()
+        }.onFailure { e ->
+            android.util.Log.e("StealthEx", "Reddit backup import failed", e)
         }
     }
 

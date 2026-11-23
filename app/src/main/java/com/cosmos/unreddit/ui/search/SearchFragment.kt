@@ -14,17 +14,21 @@ import com.cosmos.unreddit.R
 import com.cosmos.unreddit.databinding.FragmentSearchBinding
 import com.cosmos.unreddit.ui.base.BaseFragment
 import com.cosmos.unreddit.ui.common.adapter.FragmentAdapter
+import com.cosmos.unreddit.ui.layout.LayoutFragment
 import com.cosmos.unreddit.ui.sort.SortFragment
 import com.cosmos.unreddit.util.SearchUtil
+import com.cosmos.unreddit.util.extension.clearLayoutListener
 import com.cosmos.unreddit.util.extension.clearSortingListener
 import com.cosmos.unreddit.util.extension.getRecyclerView
 import com.cosmos.unreddit.util.extension.launchRepeat
 import com.cosmos.unreddit.util.extension.scrollToTop
+import com.cosmos.unreddit.util.extension.setLayoutListener
 import com.cosmos.unreddit.util.extension.setSortingListener
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -87,6 +91,26 @@ class SearchFragment : BaseFragment() {
                     binding.appBar.sortIcon.setSorting(it)
                 }
             }
+
+            launch {
+                viewModel.layoutType.collect { layoutType ->
+                    binding.appBar.layoutToggleCard.apply {
+                        val iconRes = when (layoutType) {
+                            1 -> R.drawable.ic_layout_compact
+                            2 -> R.drawable.ic_layout_fullscreen
+                            else -> R.drawable.ic_layout_large
+                        }
+                        val descRes = when (layoutType) {
+                            1 -> R.string.layout_compact
+                            2 -> R.string.layout_fullscreen
+                            else -> R.string.layout_card
+                        }
+                        setIcon(iconRes)
+                        setIconTint(null)
+                        contentDescription = getString(descRes)
+                    }
+                }
+            }
         }
     }
 
@@ -135,6 +159,7 @@ class SearchFragment : BaseFragment() {
                 addTarget(backCard)
                 addTarget(label)
                 addTarget(sortCard)
+                addTarget(layoutToggleCard)
                 addTarget(sortIcon)
                 addTarget(cancelCard)
                 setSearchActionListener {
@@ -142,6 +167,7 @@ class SearchFragment : BaseFragment() {
                 }
             }
             sortCard.setOnClickListener { showSortDialog() }
+            layoutToggleCard.setOnClickListener { showLayoutDialog() }
             backCard.setOnClickListener { onBackPressed() }
             cancelCard.setOnClickListener { showSearchInput(false) }
         }
@@ -149,6 +175,17 @@ class SearchFragment : BaseFragment() {
 
     private fun initResultListener() {
         setSortingListener { sorting -> sorting?.let { viewModel.setSorting(it) } }
+        setLayoutListener { layout ->
+            layout?.let {
+                viewModel.setLayoutType(it)
+                val message = when (it) {
+                    1 -> R.string.layout_compact
+                    2 -> R.string.layout_fullscreen
+                    else -> R.string.layout_card
+                }
+                android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun showSearchInput(show: Boolean) {
@@ -158,6 +195,7 @@ class SearchFragment : BaseFragment() {
                     backCard.isVisible = !show
                     label.isVisible = !show
                     sortCard.isVisible = !show
+                    layoutToggleCard.isVisible = !show
                     sortIcon.isVisible = !show
                     cancelCard.isVisible = show
                 }
@@ -181,9 +219,17 @@ class SearchFragment : BaseFragment() {
         )
     }
 
+    private fun showLayoutDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentLayoutType = viewModel.layoutType.first()
+            LayoutFragment.show(childFragmentManager, currentLayoutType)
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
         clearSortingListener()
+        clearLayoutListener()
         _binding = null
     }
 

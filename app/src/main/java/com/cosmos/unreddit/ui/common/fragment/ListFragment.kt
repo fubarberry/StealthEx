@@ -4,8 +4,11 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.children
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.PagerSnapHelper
+import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.Adapter
 import androidx.recyclerview.widget.RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
@@ -28,9 +31,80 @@ abstract class ListFragment<T : Adapter<out ViewHolder>> : BaseFragment(),
 
     protected lateinit var adapter: T
 
+    protected val isAdapterInitialized: Boolean
+        get() = ::adapter.isInitialized
+
     protected open val showItemDecoration: Boolean = false
 
     protected open val enablePullToRefresh: Boolean = true
+
+    private var dividerDecoration: PostDividerItemDecoration? = null
+    private val pagerSnapHelper = PagerSnapHelper()
+    private var isFullscreenMode: Boolean = false
+    private var lastFullscreenViewportHeight: Int = -1
+
+    private val syncFullscreenLayoutRunnable = Runnable {
+        val rv = _binding?.listContent ?: return@Runnable
+        if (!rv.isAttachedToWindow || !isFullscreenMode) return@Runnable
+        val viewportHeight = (rv.height - rv.paddingTop - rv.paddingBottom).coerceAtLeast(0)
+        if (viewportHeight <= 0) return@Runnable
+
+        var requestedChildLayout = false
+        for (child in rv.children) {
+            if (
+                child.layoutParams.height == ViewGroup.LayoutParams.MATCH_PARENT &&
+                child.height != viewportHeight
+            ) {
+                child.requestLayout()
+                requestedChildLayout = true
+            }
+        }
+        if (requestedChildLayout) {
+            rv.requestLayout()
+        }
+
+        if (rv.scrollState == RecyclerView.SCROLL_STATE_IDLE) {
+            val lm = rv.layoutManager ?: return@Runnable
+            val snapView = pagerSnapHelper.findSnapView(lm) ?: return@Runnable
+            val snapDistance = pagerSnapHelper.calculateDistanceToFinalSnap(lm, snapView) ?: return@Runnable
+            if (snapDistance[0] != 0 || snapDistance[1] != 0) {
+                rv.scrollBy(snapDistance[0], snapDistance[1])
+            }
+        }
+    }
+
+    private val fullscreenLayoutChangeListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        val rv = _binding?.listContent ?: return@OnLayoutChangeListener
+        if (isFullscreenMode) {
+            val viewportHeight = (rv.height - rv.paddingTop - rv.paddingBottom).coerceAtLeast(0)
+            if (viewportHeight > 0) {
+                var childNeedsResize = false
+                for (child in rv.children) {
+                    if (
+                        child.layoutParams.height == ViewGroup.LayoutParams.MATCH_PARENT &&
+                        child.height != viewportHeight
+                    ) {
+                        childNeedsResize = true
+                        break
+                    }
+                }
+                if (viewportHeight != lastFullscreenViewportHeight || childNeedsResize) {
+                    lastFullscreenViewportHeight = viewportHeight
+                    rv.removeCallbacks(syncFullscreenLayoutRunnable)
+                    rv.post(syncFullscreenLayoutRunnable)
+                }
+            }
+        }
+    }
+
+    private val fullscreenScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            if (isFullscreenMode && newState == RecyclerView.SCROLL_STATE_IDLE) {
+                recyclerView.removeCallbacks(syncFullscreenLayoutRunnable)
+                recyclerView.post(syncFullscreenLayoutRunnable)
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -66,12 +140,37 @@ abstract class ListFragment<T : Adapter<out ViewHolder>> : BaseFragment(),
             applyWindowInsets(left = false, top = false, right = false)
             layoutManager = LinearLayoutManager(requireContext())
             adapter = this@ListFragment.adapter
+            addOnLayoutChangeListener(fullscreenLayoutChangeListener)
+            addOnScrollListener(fullscreenScrollListener)
             if (showItemDecoration) {
-                addItemDecoration(PostDividerItemDecoration(context))
+                val decoration = PostDividerItemDecoration(context)
+                dividerDecoration = decoration
+                addItemDecoration(decoration)
             }
         }
 
         binding.pullRefresh.setOnRefreshListener(this)
+    }
+
+    protected fun setFullscreenMode(fullscreen: Boolean) {
+        if (isFullscreenMode != fullscreen && _binding != null) {
+            isFullscreenMode = fullscreen
+            binding.listContent.clipToPadding = fullscreen
+            if (fullscreen) {
+                dividerDecoration?.let { binding.listContent.removeItemDecoration(it) }
+                pagerSnapHelper.attachToRecyclerView(binding.listContent)
+                lastFullscreenViewportHeight = -1
+                binding.listContent.post(syncFullscreenLayoutRunnable)
+            } else {
+                binding.listContent.removeCallbacks(syncFullscreenLayoutRunnable)
+                pagerSnapHelper.attachToRecyclerView(null)
+                dividerDecoration?.let {
+                    binding.listContent.removeItemDecoration(it)
+                    binding.listContent.addItemDecoration(it)
+                }
+                lastFullscreenViewportHeight = -1
+            }
+        }
     }
 
     protected fun setRefreshTime(timeInMillis: Long) {
@@ -93,6 +192,8 @@ abstract class ListFragment<T : Adapter<out ViewHolder>> : BaseFragment(),
 
     override fun onDestroyView() {
         super.onDestroyView()
+        pagerSnapHelper.attachToRecyclerView(null)
+        isFullscreenMode = false
         _binding = null
     }
 }

@@ -34,6 +34,10 @@ object LinkUtil {
     private val GFYCAT_LINK = Regex("(.+?\\.)?gfycat\\.com")
     private val REDGIFS_LINK = Regex("(.+?\\.)?redgifs\\.com")
     private val STREAMABLE_LINK = Regex("(.+?)\\.streamable\\.com")
+    private val TWITTER_STATUS_REGEX = Regex(
+        "(?:https?://)?(?:[\\w-]+\\.)?(?:twitter\\.com|x\\.com|fxtwitter\\.com|vxtwitter\\.com|fixupx\\.com|nitter\\.net)/(?:[^/]+/status|i/web/status|i/status|status)/(\\d+)",
+        RegexOption.IGNORE_CASE
+    )
 
     private const val REDDIT_SOUNDTRACK_NAME: String = "DASH_audio"
 
@@ -74,7 +78,14 @@ object LinkUtil {
     }
 
     fun getGfycatId(link: String): String {
-        return link.toHttpUrlOrNull()?.pathSegments?.lastOrNull() ?: return link
+        val rawSegment = link.toHttpUrlOrNull()
+            ?.pathSegments
+            ?.lastOrNull { it.isNotBlank() }
+            ?: return link
+        return rawSegment
+            .substringBefore('.')
+            .substringBefore('-')
+            .lowercase()
     }
 
     fun getStreamableShortcode(link: String): String {
@@ -91,7 +102,17 @@ object LinkUtil {
         val httpUrl = link.toHttpUrlOrNull() ?: return MediaType.NO_MEDIA
         val domain = httpUrl.host
         val lastSegment = httpUrl.pathSegments.lastOrNull() ?: ""
-        val extension = lastSegment.substringAfterLast('.', "").lowercase()
+        var extension = lastSegment.substringAfterLast('.', "").lowercase()
+        if (extension.isEmpty()) {
+            extension = when (httpUrl.queryParameter("format")?.lowercase()) {
+                "pjpg", "jpg", "jpeg" -> "jpeg"
+                "png" -> "png"
+                "webp" -> "webp"
+                "gif" -> "gif"
+                "mp4" -> "mp4"
+                else -> ""
+            }
+        }
         var mime = try {
             MimeTypeMap.getSingleton()?.getMimeTypeFromExtension(extension) ?: ""
         } catch (e: Exception) {
@@ -103,6 +124,9 @@ object LinkUtil {
                 "mp4", "webm", "mkv", "avi", "gifv" -> "video/$extension"
                 else -> ""
             }
+        }
+        if (mime.isEmpty() && (domain.equals("i.redd.it", ignoreCase = true) || domain.equals("preview.redd.it", ignoreCase = true))) {
+            mime = "image/jpeg"
         }
 
         return when {
@@ -334,5 +358,23 @@ object LinkUtil {
 
     fun getGiphyGifUrl(id: String): String {
         return "https://i.giphy.com/$id.gif"
+    }
+
+    fun isTwitterStatusLink(link: String): Boolean {
+        return TWITTER_STATUS_REGEX.containsMatchIn(link)
+    }
+
+    fun getTweetId(link: String): String? {
+        return TWITTER_STATUS_REGEX.find(link)?.groupValues?.getOrNull(1)
+    }
+
+    fun getAlternativeRedditImageUrls(url: String): List<String> {
+        val httpUrl = url.toHttpUrlOrNull() ?: return emptyList()
+        if (!httpUrl.host.equals("i.redd.it", ignoreCase = true) || httpUrl.querySize > 0) return emptyList()
+        val segment = httpUrl.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() } ?: return emptyList()
+        val id = segment.substringBeforeLast('.', segment)
+        val currentExt = segment.substringAfterLast('.', "").lowercase()
+        val extensions = listOf("jpeg", "png", "jpg", "webp", "gif")
+        return extensions.filter { it != currentExt }.map { "https://i.redd.it/$id.$it" }
     }
 }

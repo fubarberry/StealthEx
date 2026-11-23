@@ -8,6 +8,7 @@ import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -18,11 +19,37 @@ interface RedditApi {
     @GET
     suspend fun getSubredditPage(@Url url: String): ResponseBody
 
+    @GET("/by_id/{names}")
+    suspend fun getPostById(@Path("names") names: String): ResponseBody
+
+    @Headers("Accept: text/vnd.reddit.partial+html, text/html;q=0.9")
+    @GET
+    suspend fun getShredditComments(
+        @Url url: String,
+        @Query("sort") sort: Sort,
+        @Query("render-mode") renderMode: String = "partial"
+    ): ResponseBody
+
+    @Headers("Accept: text/vnd.reddit.partial+html, text/html;q=0.9")
+    @POST
+    suspend fun getShredditMoreComments(
+        @Url url: String,
+        @Body body: RequestBody
+    ): ResponseBody
+
     //region Subreddit
+
+    @GET("/{sort}")
+    suspend fun getFrontpage(
+        @Path("sort") sort: Sort,
+        @Query("t") timeSorting: TimeSorting?,
+        @Query("after") after: String? = null,
+        @Query("geo_filter") geoFilter: String? = "GLOBAL"
+    ): ResponseBody
 
     @GET("/r/{subreddit}/{sort}")
     suspend fun getSubreddit(
-        @Path("subreddit") subreddit: String,
+        @Path("subreddit", encoded = true) subreddit: String,
         @Path("sort") sort: Sort,
         @Query("t") timeSorting: TimeSorting?,
         @Query("after") after: String? = null,
@@ -32,9 +59,9 @@ interface RedditApi {
     @GET("/r/{subreddit}/about")
     suspend fun getSubredditInfo(@Path("subreddit") subreddit: String): ResponseBody
 
-    @GET("/r/{subreddit}/search?restrict_sr=1&include_over_18=1")
+    @GET("/r/{subreddit}/search.json-html?restrict_sr=1&include_over_18=1")
     suspend fun searchInSubreddit(
-        @Path("subreddit") subreddit: String,
+        @Path("subreddit", encoded = true) subreddit: String,
         @Query("q") query: String,
         @Query("sort") sort: Sort?,
         @Query("t") timeSorting: TimeSorting?,
@@ -84,7 +111,7 @@ interface RedditApi {
 
     //region Search
 
-    @GET("/search?type=link&include_over_18=1")
+    @GET("/search.json-html?type=link&include_over_18=1")
     suspend fun searchPost(
         @Query("q") query: String,
         @Query("sort") sort: Sort?,
@@ -92,7 +119,7 @@ interface RedditApi {
         @Query("after") after: String? = null
     ): ResponseBody
 
-    @GET("/search?type=user&include_over_18=1")
+    @GET("/search.json-html?type=user&include_over_18=1")
     suspend fun searchUser(
         @Query("q") query: String,
         @Query("sort") sort: Sort?,
@@ -100,12 +127,35 @@ interface RedditApi {
         @Query("after") after: String? = null
     ): ResponseBody
 
-    @GET("/search?type=sr&include_over_18=1")
+    @GET("/search.json-html?type=sr&include_over_18=1")
     suspend fun searchSubreddit(
         @Query("q") query: String,
         @Query("sort") sort: Sort?,
         @Query("t") timeSorting: TimeSorting?,
         @Query("after") after: String? = null
+    ): ResponseBody
+
+    @Headers("Accept: text/vnd.reddit.partial+html, text/html;q=0.9")
+    @GET("https://www.reddit.com/svc/shreddit/search/")
+    suspend fun searchShreddit(
+        @Query("q") query: String,
+        @Query("type") type: String,
+        @Query("sort") sort: Sort? = null,
+        @Query("t") timeSorting: TimeSorting? = null,
+        @Query("cursor") cursor: String? = null,
+        @Query("include_over_18") includeOver18: String = "1"
+    ): ResponseBody
+
+    @Headers("Accept: text/vnd.reddit.partial+html, text/html;q=0.9")
+    @GET("https://www.reddit.com/svc/shreddit/r/{subreddit}/search/")
+    suspend fun searchInSubredditShreddit(
+        @Path("subreddit", encoded = true) subreddit: String,
+        @Query("q") query: String,
+        @Query("sort") sort: Sort? = null,
+        @Query("t") timeSorting: TimeSorting? = null,
+        @Query("cursor") cursor: String? = null,
+        @Query("restrict_sr") restrictSr: String = "1",
+        @Query("include_over_18") includeOver18: String = "1"
     ): ResponseBody
 
     @POST("/over18")
@@ -115,6 +165,7 @@ interface RedditApi {
 
     companion object {
         const val BASE_URL = "https://www.reddit.com/"
+        const val BASE_URL_OAUTH = "https://oauth.reddit.com/"
         const val BASE_URL_OLD = "https://old.reddit.com/"
     }
 }

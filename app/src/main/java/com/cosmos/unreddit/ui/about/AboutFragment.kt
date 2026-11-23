@@ -32,8 +32,7 @@ class AboutFragment : BaseFragment() {
 
     private lateinit var creditAdapter: CreditAdapter
 
-    private val gitlabLink by lazy { getString(R.string.gitlab_link) }
-    private val matrixLink by lazy { getString(R.string.matrix_link) }
+    private val githubLink by lazy { getString(R.string.github_link) }
     private val email by lazy { getString(R.string.email) }
 
     override fun onCreateView(
@@ -92,8 +91,7 @@ class AboutFragment : BaseFragment() {
     private fun initAppBar() {
         binding.appBar.run {
             backCard.setOnClickListener { onBackPressed() }
-            buttonGitlab.setOnClickListener { linkHandler.openBrowser(gitlabLink) }
-            buttonMatrix.setOnClickListener { linkHandler.openBrowser(matrixLink) }
+            buttonGithub.setOnClickListener { linkHandler.openBrowser(githubLink) }
             buttonMail.setOnClickListener { sendEmail() }
         }
     }
@@ -127,7 +125,7 @@ class AboutFragment : BaseFragment() {
                 activity?.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager?
 
             if (clipboard != null) {
-                val clip = ClipData.newPlainText("CosmosDev email", email)
+                val clip = ClipData.newPlainText("StealthEx email", email)
                 clipboard.setPrimaryClip(clip)
                 if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
                     Toast.makeText(
@@ -148,6 +146,14 @@ class AboutFragment : BaseFragment() {
     companion object {
         private val CREDITS: List<CreditItem.Credit> by lazy {
             listOf(
+                CreditItem.Credit(
+                    "Stealth (Original Project)",
+                    "CosmosDev",
+                    "StealthEx is a fork of the original Stealth Reddit client by CosmosDev.",
+                    "https://gitlab.com/cosmosapps/stealth",
+                    CreditItem.Credit.LicenseType.GPL_V3,
+                    "https://www.gnu.org/licenses/gpl-3.0.html"
+                ),
                 CreditItem.Credit(
                     "Feather",
                     "Cole Bemis",

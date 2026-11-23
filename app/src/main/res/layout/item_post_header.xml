@@ -38,7 +38,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/text_post_title"
-        app:layout_constraintBottom_toTopOf="@id/text_post"
+        app:layout_constraintBottom_toTopOf="@id/tweet_card"
         android:layout_marginHorizontal="@dimen/post_content_margin_horizontal"
         android:layout_marginTop="@dimen/post_margin_top_small"
         android:scaleType="centerCrop"
@@ -62,24 +62,30 @@
         tools:visibility="visible"
         tools:icon="@drawable/ic_play"/>
 
+    <com.cosmos.unreddit.ui.common.widget.TweetCardView
+        android:id="@+id/tweet_card"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/image_post"
+        app:layout_constraintBottom_toTopOf="@id/text_post"
+        android:layout_marginHorizontal="@dimen/post_content_margin_horizontal"
+        android:layout_marginTop="@dimen/post_margin_top_small"
+        android:visibility="gone"
+        tools:visibility="visible"/>
+
     <com.cosmos.unreddit.ui.common.widget.RedditView
         android:id="@+id/text_post"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/image_post"
+        app:layout_constraintTop_toBottomOf="@id/tweet_card"
         app:layout_constraintBottom_toTopOf="@id/include_post_flairs"
         android:layout_marginTop="@dimen/post_margin_top_small"
         android:paddingHorizontal="@dimen/post_text_padding"
         android:visibility="gone"/>
-
-    <androidx.constraintlayout.widget.Barrier
-        android:id="@+id/barrier_bottom"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:barrierDirection="bottom"
-        app:constraint_referenced_ids="image_post, text_post" />
 
     <include
         android:id="@+id/include_post_flairs"

@@ -89,7 +89,7 @@ class RedditView @JvmOverloads constructor(
             android.text.style.URLSpan::class.java
         ) ?: emptyArray()
 
-        if (!isMediaExpanded || spans.isEmpty()) {
+        if (spans.isEmpty()) {
             val redditTextView = RedditTextView(context).apply {
                 layoutParams = childParams
                 text = charSequence
@@ -104,6 +104,8 @@ class RedditView @JvmOverloads constructor(
             val end = charSequence.getSpanEnd(span)
             val url = span.url
             val type = when {
+                LinkUtil.isTwitterStatusLink(url) -> SpanType.TWEET
+                !isMediaExpanded -> SpanType.OTHER
                 url.startsWith("expand_all:") -> SpanType.EXPAND_ALL
                 LinkUtil.getLinkType(url) in listOf(
                     MediaType.IMAGE,
@@ -128,8 +130,23 @@ class RedditView @JvmOverloads constructor(
 
         var lastEnd = 0
         for (parsedSpan in spansWithIndex) {
-            if (parsedSpan.start > lastEnd) {
-                val textSegment = charSequence.subSequence(lastEnd, parsedSpan.start)
+            val spanText = charSequence.subSequence(parsedSpan.start, parsedSpan.end).toString().trim()
+            val keepAnchorText = when (parsedSpan.type) {
+                SpanType.TWEET -> spanText.isNotEmpty() &&
+                    !spanText.startsWith("http://", ignoreCase = true) &&
+                    !spanText.startsWith("https://", ignoreCase = true) &&
+                    !LinkUtil.isTwitterStatusLink(spanText)
+                SpanType.IMAGE -> spanText.isNotEmpty() &&
+                    spanText != "<image>" &&
+                    spanText != "<gif>" &&
+                    !spanText.startsWith("http://", ignoreCase = true) &&
+                    !spanText.startsWith("https://", ignoreCase = true)
+                else -> false
+            }
+
+            val segmentEnd = if (keepAnchorText) parsedSpan.end else parsedSpan.start
+            if (segmentEnd > lastEnd) {
+                val textSegment = charSequence.subSequence(lastEnd, segmentEnd).trimNewlines()
                 if (textSegment.isNotBlank()) {
                     val redditTextView = RedditTextView(context).apply {
                         layoutParams = childParams
@@ -140,15 +157,17 @@ class RedditView @JvmOverloads constructor(
                 }
             }
 
-            if (parsedSpan.type == SpanType.IMAGE) {
-                addInlineMedia(parsedSpan.url)
+            when (parsedSpan.type) {
+                SpanType.IMAGE -> addInlineMedia(parsedSpan.url)
+                SpanType.TWEET -> addInlineTweet(parsedSpan.url)
+                else -> {}
             }
 
             lastEnd = parsedSpan.end
         }
 
         if (lastEnd < charSequence.length) {
-            val textSegment = charSequence.subSequence(lastEnd, charSequence.length)
+            val textSegment = charSequence.subSequence(lastEnd, charSequence.length).trimNewlines()
             if (textSegment.isNotBlank()) {
                 val redditTextView = RedditTextView(context).apply {
                     layoutParams = childParams
@@ -160,7 +179,21 @@ class RedditView @JvmOverloads constructor(
         }
     }
 
+    private fun CharSequence.trimNewlines(): CharSequence {
+        var start = 0
+        var end = length
+        while (start < end && (this[start] == '\n' || this[start] == '\r')) {
+            start++
+        }
+        while (end > start && (this[end - 1] == '\n' || this[end - 1] == '\r')) {
+            end--
+        }
+        return if (start > 0 || end < length) subSequence(start, end) else this
+    }
+
     private fun addInlineMedia(url: String) {
+        var activeUrl = url
+        val fallbackUrls = LinkUtil.getAlternativeRedditImageUrls(url)
         val imageView = object : ImageView(context) {
             override fun setImageDrawable(drawable: android.graphics.drawable.Drawable?) {
                 super.setImageDrawable(drawable)
@@ -189,18 +222,57 @@ class RedditView @JvmOverloads constructor(
             }
             adjustViewBounds = true
             maxHeight = (context.resources.displayMetrics.density * 350).toInt()
-            load(url, false) {
-                scale(coil.size.Scale.FIT)
+            fun loadWithFallback(targetUrl: String, fallbackIndex: Int) {
+                activeUrl = targetUrl
+                load(targetUrl, false) {
+                    scale(coil.size.Scale.FIT)
+                    listener(
+                        onError = { _, _ ->
+                            if (fallbackIndex < fallbackUrls.size) {
+                                loadWithFallback(fallbackUrls[fallbackIndex], fallbackIndex + 1)
+                            }
+                        }
+                    )
+                }
             }
+            loadWithFallback(url, 0)
             setOnClickListener {
-                onLinkClick(url)
+                onLinkClick(activeUrl)
+            }
+            setOnLongClickListener {
+                onLinkLongClick(activeUrl)
+                true
             }
         }
         addView(imageView)
     }
 
+    private fun addInlineTweet(url: String) {
+        val margin = context.resources.getDimensionPixelSize(R.dimen.comment_offset) / 2
+        val tweetCardView = TweetCardView(context).apply {
+            layoutParams = LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = margin
+                bottomMargin = margin
+            }
+            bindTweetUrl(
+                url = url,
+                blurMedia = false,
+                onCardClick = { link -> onLinkClick(link) },
+                onMediaClick = { tweet -> onLinkClick("tweet_media:${tweet.url}") }
+            )
+            setOnLongClickListener {
+                onLinkLongClick(url)
+                true
+            }
+        }
+        addView(tweetCardView)
+    }
+
     private enum class SpanType {
-        IMAGE, EXPAND_ALL, OTHER
+        IMAGE, TWEET, EXPAND_ALL, OTHER
     }
 
     private data class ParsedSpan(

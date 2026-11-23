@@ -80,26 +80,49 @@ fun View.applyWindowInsets(
     right: Boolean = true,
     bottom: Boolean = true
 ) {
+    val initialPaddingLeft = paddingLeft
+    val initialPaddingTop = paddingTop
+    val initialPaddingRight = paddingRight
+    val initialPaddingBottom = paddingBottom
+
     ViewCompat.setOnApplyWindowInsetsListener(this) { view, windowInsets ->
         val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-        val paddingLeft = if (left) insets.left else view.paddingLeft
-        val paddingTop = if (top) insets.top else view.paddingTop
-        val paddingRight = if (right) insets.right else view.paddingRight
-        val paddingBottom = if (bottom) insets.bottom else view.paddingBottom
+        val paddingLeft = if (left) initialPaddingLeft + insets.left else view.paddingLeft
+        val paddingTop = if (top) initialPaddingTop + insets.top else view.paddingTop
+        val paddingRight = if (right) initialPaddingRight + insets.right else view.paddingRight
+        val paddingBottom = if (bottom) initialPaddingBottom + insets.bottom else view.paddingBottom
 
-        view.run {
-            updatePadding(
-                left = paddingLeft,
-                top = paddingTop,
-                right = paddingRight,
-                bottom = paddingBottom
-            )
-
-            clearWindowInsetsListener()
-        }
+        view.updatePadding(
+            left = paddingLeft,
+            top = paddingTop,
+            right = paddingRight,
+            bottom = paddingBottom
+        )
 
         windowInsets
+    }
+
+    if (isAttachedToWindow) {
+        ViewCompat.getRootWindowInsets(this)?.let { windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            updatePadding(
+                left = if (left) initialPaddingLeft + insets.left else paddingLeft,
+                top = if (top) initialPaddingTop + insets.top else paddingTop,
+                right = if (right) initialPaddingRight + insets.right else paddingRight,
+                bottom = if (bottom) initialPaddingBottom + insets.bottom else paddingBottom
+            )
+        }
+        ViewCompat.requestApplyInsets(this)
+    } else {
+        addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {
+                v.removeOnAttachStateChangeListener(this)
+                ViewCompat.requestApplyInsets(v)
+            }
+
+            override fun onViewDetachedFromWindow(v: View) = Unit
+        })
     }
 }
 

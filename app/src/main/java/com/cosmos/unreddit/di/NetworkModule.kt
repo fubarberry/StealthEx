@@ -5,9 +5,10 @@ import com.cosmos.unreddit.data.remote.TargetRedditInterceptor
 import com.cosmos.unreddit.data.remote.api.gfycat.GfycatApi
 import com.cosmos.unreddit.data.remote.api.imgur.ImgurApi
 import com.cosmos.unreddit.data.remote.api.imgur.adapter.AlbumDataAdapter
-import com.cosmos.unreddit.data.remote.api.reddit.JsonInterceptor
 import com.cosmos.unreddit.data.remote.api.reddit.RedditApi
+import com.cosmos.unreddit.data.remote.api.reddit.RedditAuthInterceptor
 import com.cosmos.unreddit.data.remote.api.reddit.RedditCookieJar
+import com.cosmos.unreddit.data.remote.api.reddit.RedditTokenManager
 import com.cosmos.unreddit.data.remote.api.reddit.SortingConverterFactory
 import com.cosmos.unreddit.data.remote.api.reddit.TedditApi
 import com.cosmos.unreddit.data.remote.api.reddit.adapter.EditedAdapter
@@ -121,10 +122,12 @@ object NetworkModule {
     @RedditOkHttp
     @Provides
     @Singleton
-    fun provideRedditOkHttpClient(): OkHttpClient {
+    fun provideRedditOkHttpClient(
+        tokenManager: RedditTokenManager
+    ): OkHttpClient {
         return OkHttpClient.Builder()
             .addInterceptor(RawJsonInterceptor())
-            .addInterceptor(JsonInterceptor())
+            .addInterceptor(RedditAuthInterceptor(tokenManager))
             .connectTimeout(TIMEOUT.first, TIMEOUT.second)
             .readTimeout(TIMEOUT.first, TIMEOUT.second)
             .writeTimeout(TIMEOUT.first, TIMEOUT.second)
@@ -159,7 +162,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRedditScrapOkHttpClient(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+        cookieJar: RedditCookieJar
     ): OkHttpClient {
         val userAgent = try {
             android.webkit.WebSettings.getDefaultUserAgent(context)
@@ -168,17 +172,22 @@ object NetworkModule {
         }
         return OkHttpClient.Builder()
             .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
+                val original = chain.request()
+                val builder = original.newBuilder()
                     .header("User-Agent", userAgent)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
                     .header("Accept-Language", "en-US,en;q=0.5")
-                    .build()
-                chain.proceed(request)
+                if (original.header("Accept") == null) {
+                    builder.header(
+                        "Accept",
+                        "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+                    )
+                }
+                chain.proceed(builder.build())
             }
             .connectTimeout(TIMEOUT.first, TIMEOUT.second)
             .readTimeout(TIMEOUT.first, TIMEOUT.second)
             .writeTimeout(TIMEOUT.first, TIMEOUT.second)
-            .cookieJar(RedditCookieJar())
+            .cookieJar(cookieJar)
             .build()
     }
 
@@ -190,7 +199,7 @@ object NetworkModule {
         @RedditOkHttp okHttpClient: OkHttpClient
     ): RedditApi {
         return Retrofit.Builder()
-            .baseUrl(RedditApi.BASE_URL)
+            .baseUrl(RedditApi.BASE_URL_OAUTH)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .addConverterFactory(SortingConverterFactory())
             .client(okHttpClient)

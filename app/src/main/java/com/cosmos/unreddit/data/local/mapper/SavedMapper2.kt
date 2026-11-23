@@ -27,7 +27,7 @@ class SavedMapper2 @Inject constructor(
     }
 
     suspend fun dataToEntity(data: PostEntity): SavedItem = withContext(defaultDispatcher) {
-        val redditText = htmlParser.separateHtmlBlocks(data.selfTextHtml)
+        val redditText = htmlParser.separateHtmlBlocks(data.selfTextHtml, includeExpandAll = false)
         SavedItem.Post(
             data.apply {
                 hasFlairs = isOver18 || isSpoiler || isOC || isStickied || isArchived || isLocked

@@ -6,6 +6,7 @@ import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import coil.size.Precision
 import coil.size.Scale
+import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.GalleryMedia
 import com.cosmos.unreddit.databinding.ItemThumbnailBinding
 
@@ -57,10 +58,17 @@ class MediaViewerThumbnailAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(image: GalleryMedia) {
-            binding.thumbnail.load(image.url) {
+            val fallbackRes = if (image.type == GalleryMedia.Type.VIDEO) {
+                R.drawable.video_fallback
+            } else {
+                R.drawable.image_fallback
+            }
+            binding.thumbnail.load(image.thumbnailUrl ?: image.url) {
                 crossfade(true)
                 scale(Scale.FILL)
                 precision(Precision.AUTOMATIC)
+                error(fallbackRes)
+                fallback(fallbackRes)
             }
             binding.thumbnail.setOnClickListener { onClick(absoluteAdapterPosition) }
             select(absoluteAdapterPosition == selected)

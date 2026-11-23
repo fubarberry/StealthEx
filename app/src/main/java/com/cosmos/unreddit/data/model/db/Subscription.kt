@@ -27,5 +27,11 @@ data class Subscription (
     val icon: String?,
 
     @ColumnInfo(name = "profile_id", index = true)
-    var profileId: Int = 1
+    var profileId: Int = 1,
+
+    @ColumnInfo(name = "is_subscribed", defaultValue = "1")
+    val isSubscribed: Boolean = true,
+
+    @ColumnInfo(name = "is_pinned", defaultValue = "0")
+    val isPinned: Boolean = false
 )

@@ -8,6 +8,9 @@ import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.data.model.Sorting
 import com.cosmos.unreddit.data.model.db.History
 import com.cosmos.unreddit.data.model.db.HiddenPostEntity
+import com.cosmos.unreddit.data.model.db.Multireddit
+import com.cosmos.unreddit.data.model.db.MultiredditSubreddit
+import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.model.db.Subscription
@@ -30,6 +33,7 @@ import com.cosmos.unreddit.di.DispatchersModule.MainImmediateDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,9 +42,31 @@ import javax.inject.Singleton
 class PostListRepository @Inject constructor(
     private val source: CurrentSource,
     private val redditDatabase: RedditDatabase,
+    private val redgifsRepository: RedgifsRepository,
+    private val gfycatRepository: GfycatRepository,
+    private val streamableRepository: StreamableRepository,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
     @MainImmediateDispatcher private val mainImmediateDispatcher: CoroutineDispatcher
 ) {
+
+    suspend fun resolveRedgifsUrl(id: String): String? {
+        return runCatching {
+            val item = redgifsRepository.getRedgifsGif(id).first()
+            item.gif.urls.hd ?: item.gif.urls.sd
+        }.getOrNull()
+    }
+
+    suspend fun resolveGfycatUrl(id: String): String? {
+        return runCatching {
+            gfycatRepository.getGfycatGif(id).first().gfyItem.contentUrls.mp4.url
+        }.getOrNull()
+    }
+
+    suspend fun resolveStreamableUrl(shortcode: String): String? {
+        return runCatching {
+            streamableRepository.getVideo(shortcode).first().files.mp4.url
+        }.getOrNull()
+    }
 
     fun getPost(permalink: String, sorting: Sorting): Flow<List<Listing>> = flow {
         emit(source.getPost(permalink, sort = sorting.generalSorting))
@@ -90,6 +116,60 @@ class PostListRepository @Inject constructor(
 
     //endregion
 
+    //region Multireddits
+
+    fun getMultireddits(profileId: Int): Flow<List<MultiredditWithSubreddits>> = redditDatabase
+        .multiredditDao().getMultiredditsFromProfile(profileId).distinctUntilChanged()
+
+    fun getMultireddit(multiredditId: Int): Flow<MultiredditWithSubreddits?> = redditDatabase
+        .multiredditDao().getMultiredditById(multiredditId).distinctUntilChanged()
+
+    suspend fun createMultireddit(
+        name: String,
+        profileId: Int,
+        initialSubreddits: List<String> = emptyList()
+    ): Int {
+        val dao = redditDatabase.multiredditDao()
+        val id = dao.insertMultireddit(
+            Multireddit(
+                name = name.trim(),
+                time = System.currentTimeMillis(),
+                profileId = profileId
+            )
+        ).toInt()
+        if (initialSubreddits.isNotEmpty()) {
+            dao.replaceSubreddits(id, initialSubreddits)
+        }
+        return id
+    }
+
+    suspend fun renameMultireddit(multiredditId: Int, newName: String) {
+        redditDatabase.multiredditDao().renameMultireddit(multiredditId, newName.trim())
+    }
+
+    suspend fun deleteMultireddit(multiredditId: Int) {
+        redditDatabase.multiredditDao().deleteMultireddit(multiredditId)
+    }
+
+    suspend fun addSubredditToMultireddit(multiredditId: Int, subreddit: String) {
+        val clean = subreddit.trim()
+        if (clean.isNotBlank()) {
+            redditDatabase.multiredditDao().addSubreddit(
+                MultiredditSubreddit(multiredditId, clean)
+            )
+        }
+    }
+
+    suspend fun removeSubredditFromMultireddit(multiredditId: Int, subreddit: String) {
+        redditDatabase.multiredditDao().removeSubreddit(multiredditId, subreddit.trim())
+    }
+
+    suspend fun updateMultiredditSubreddits(multiredditId: Int, subreddits: List<String>) {
+        redditDatabase.multiredditDao().replaceSubreddits(multiredditId, subreddits)
+    }
+
+    //endregion
+
     //region Subscriptions
 
     fun getSubscriptions(profileId: Int): Flow<List<Subscription>> = redditDatabase
@@ -99,14 +179,77 @@ class PostListRepository @Inject constructor(
         return redditDatabase.subscriptionDao().getSubscriptionsNamesFromProfile(profileId)
     }
 
+    fun getPinnedNames(profileId: Int): Flow<List<String>> {
+        return redditDatabase.subscriptionDao().getPinnedNamesFromProfile(profileId)
+    }
+
     suspend fun subscribe(name: String, profileId: Int, icon: String? = null) {
-        redditDatabase.subscriptionDao().insert(
-            Subscription(name, System.currentTimeMillis(), icon, profileId)
-        )
+        val dao = redditDatabase.subscriptionDao()
+        val existing = dao.getSubscriptionFromNameAndProfile(name, profileId)
+        if (existing != null) {
+            dao.update(
+                existing.copy(
+                    time = System.currentTimeMillis(),
+                    icon = icon ?: existing.icon,
+                    isSubscribed = true
+                )
+            )
+        } else {
+            dao.insert(
+                Subscription(
+                    name = name,
+                    time = System.currentTimeMillis(),
+                    icon = icon,
+                    profileId = profileId,
+                    isSubscribed = true,
+                    isPinned = false
+                )
+            )
+        }
     }
 
     suspend fun unsubscribe(name: String, profileId: Int) {
-        redditDatabase.subscriptionDao().deleteFromNameAndProfile(name, profileId)
+        val dao = redditDatabase.subscriptionDao()
+        val existing = dao.getSubscriptionFromNameAndProfile(name, profileId)
+        if (existing != null && existing.isPinned) {
+            dao.update(existing.copy(isSubscribed = false))
+        } else {
+            dao.deleteFromNameAndProfile(name, profileId)
+        }
+    }
+
+    suspend fun pin(name: String, profileId: Int, icon: String? = null) {
+        val dao = redditDatabase.subscriptionDao()
+        val existing = dao.getSubscriptionFromNameAndProfile(name, profileId)
+        if (existing != null) {
+            dao.update(
+                existing.copy(
+                    icon = icon ?: existing.icon,
+                    isPinned = true
+                )
+            )
+        } else {
+            dao.insert(
+                Subscription(
+                    name = name,
+                    time = System.currentTimeMillis(),
+                    icon = icon,
+                    profileId = profileId,
+                    isSubscribed = false,
+                    isPinned = true
+                )
+            )
+        }
+    }
+
+    suspend fun unpin(name: String, profileId: Int) {
+        val dao = redditDatabase.subscriptionDao()
+        val existing = dao.getSubscriptionFromNameAndProfile(name, profileId)
+        if (existing != null && existing.isSubscribed) {
+            dao.update(existing.copy(isPinned = false))
+        } else {
+            dao.deleteFromNameAndProfile(name, profileId)
+        }
     }
 
     //endregion

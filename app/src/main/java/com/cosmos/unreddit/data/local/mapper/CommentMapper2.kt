@@ -44,7 +44,7 @@ class CommentMapper2 @Inject constructor(
                 scoreString,
                 awardings.sortedByDescending { it.count }.map { Award(it.count, it.getIcon()) },
                 bodyHtml,
-                htmlParser.separateHtmlBlocks(bodyHtml),
+                htmlParser.separateHtmlBlocks(bodyHtml, mediaMetadata),
                 editedMillis,
                 isSubmitter,
                 stickied,

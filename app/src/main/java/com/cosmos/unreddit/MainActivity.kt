@@ -6,7 +6,6 @@ import android.view.ViewGroup
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -20,23 +19,18 @@ import com.cosmos.unreddit.MainActivity.BottomNavigationState.LEFT_HANDED
 import com.cosmos.unreddit.MainActivity.BottomNavigationState.NOT_INITIALIZED
 import com.cosmos.unreddit.MainActivity.BottomNavigationState.RIGHT_HANDED
 import com.cosmos.unreddit.databinding.ActivityMainBinding
-import com.cosmos.unreddit.ui.policydisclaimer.PolicyDisclaimerDialogFragment
 import com.cosmos.unreddit.ui.postlist.PostListFragment
 import com.cosmos.unreddit.util.HideBottomViewBehavior
 import com.cosmos.unreddit.util.extension.clearWindowInsetsListener
 import com.cosmos.unreddit.util.extension.currentNavigationFragment
-import com.cosmos.unreddit.util.extension.isPast
 import com.cosmos.unreddit.util.extension.launchRepeat
 import com.cosmos.unreddit.util.extension.unredditApplication
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
-import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedListener {
@@ -48,8 +42,6 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
     private lateinit var navController: NavController
 
     private var bottomNavigationState: BottomNavigationState = NOT_INITIALIZED
-
-    private var policyDisclaimerSnackbar: Snackbar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(unredditApplication.appTheme)
@@ -71,21 +63,31 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
             }
 
             launch {
+                viewModel.navigationAutoHide
+                    .drop(1)
+                    .collect { autoHide ->
+                        val layoutParams = binding.bottomNavigation.layoutParams
+                            as? CoordinatorLayout.LayoutParams
+                        val behavior = layoutParams?.behavior as? HideBottomViewBehavior
+                        if (viewModel.navigationVisibility.value) {
+                            behavior?.run {
+                                enabled = autoHide
+                                if (!autoHide) {
+                                    slideIn(binding.bottomNavigation, true)
+                                }
+                            }
+                        } else {
+                            behavior?.enabled = false
+                        }
+                    }
+            }
+
+            launch {
                 viewModel.leftHandedMode.collect { leftHandedMode ->
                     when (bottomNavigationState) {
                         NOT_INITIALIZED -> initBottomNavigationView(leftHandedMode)
                         RIGHT_HANDED -> if (leftHandedMode) initBottomNavigationView(true)
                         LEFT_HANDED -> if (!leftHandedMode) initBottomNavigationView(false)
-                    }
-                }
-            }
-
-            launch {
-                viewModel.policyDisclaimerShown.collect { shown ->
-                    if (!shown && POLICY_DISCLAIMER_DATE.isPast) {
-                        // Don't show the snackbar right away
-                        delay(POLICY_DISCLAIMER_DELAY)
-                        showPolicyDisclaimerSnackbar()
                     }
                 }
             }
@@ -134,7 +136,9 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
             } else {
                 Gravity.BOTTOM or Gravity.END
             }
-            behavior = HideBottomViewBehavior<BottomNavigationView>(leftHandedMode)
+            behavior = HideBottomViewBehavior<BottomNavigationView>(leftHandedMode).apply {
+                enabled = viewModel.navigationAutoHide.value
+            }
         }
 
         val radius = resources.getDimension(R.dimen.bottom_navigation_radius)
@@ -179,7 +183,7 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
 
         if (show) {
             behavior?.run {
-                enabled = true
+                enabled = viewModel.navigationAutoHide.value
                 slideIn(binding.bottomNavigation, animate)
             }
         } else {
@@ -190,35 +194,22 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
         }
     }
 
-    private fun showPolicyDisclaimerSnackbar() {
-        policyDisclaimerSnackbar = Snackbar
-            .make(
-                binding.root,
-                getString(
-                    R.string.snackbar_policy_disclaimer_message,
-                    getString(R.string.app_name)
-                ),
-                Snackbar.LENGTH_INDEFINITE
-            )
-            .setAction(R.string.snackbar_policy_disclaimer_action) {
-                PolicyDisclaimerDialogFragment.show(supportFragmentManager)
-                policyDisclaimerSnackbar = null
-            }
-            .setActionTextColor(ContextCompat.getColor(this, R.color.white))
-            .apply { show() }
-    }
-
     override fun onDestinationChanged(
         controller: NavController,
         destination: NavDestination,
         arguments: Bundle?
     ) {
         when (destination.id) {
-            R.id.postListFragment,
+            R.id.postListFragment -> {
+                viewModel.setNavigationVisibility(true)
+                showNavigation(true)
+            }
             R.id.subscriptionsFragment,
             R.id.profileFragment,
             R.id.preferencesFragment -> {
+                viewModel.setNavigationAutoHide(true)
                 viewModel.setNavigationVisibility(true)
+                showNavigation(true)
             }
 
             else -> viewModel.setNavigationVisibility(false)
@@ -227,20 +218,10 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
 
     override fun onDestroy() {
         super.onDestroy()
-        policyDisclaimerSnackbar = null
         bottomNavigationState = NOT_INITIALIZED
     }
 
     private enum class BottomNavigationState {
         NOT_INITIALIZED, RIGHT_HANDED, LEFT_HANDED
-    }
-
-    companion object {
-        private val POLICY_DISCLAIMER_DATE = Calendar
-            .getInstance()
-            .apply { set(1900 + 123, 5, 10) }
-            .timeInMillis
-
-        private const val POLICY_DISCLAIMER_DELAY: Long = 5000
     }
 }

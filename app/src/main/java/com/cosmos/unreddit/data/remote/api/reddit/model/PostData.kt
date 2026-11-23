@@ -125,16 +125,20 @@ data class PostData(
     @Transient
     var crosspost: Crosspost? = null
 
+    val redgifsDirectVideoUrl: String?
+        get() = media?.embed?.thumbnailUrl
+            ?.takeIf { it.contains("redgifs.com", ignoreCase = true) }
+            ?.replace(REDGIFS_THUMBNAIL_REGEX, ".mp4")
+            ?.takeIf { it.endsWith(".mp4", ignoreCase = true) }
+
     val mediaType: MediaType
         get() = when {
             isSelf -> MediaType.NO_MEDIA
             isRedditGallery == true -> MediaType.REDDIT_GALLERY
-            domain == "gfycat.com" -> MediaType.GFYCAT
-            domain == "redgifs.com" -> MediaType.REDGIFS
-            domain == "streamable.com" -> MediaType.STREAMABLE
+            domain.endsWith("streamable.com") -> MediaType.STREAMABLE
 
             isVideo -> {
-                if (media?.redditVideoPreview?.isGif == true) {
+                if (media?.redditVideoPreview?.isGif == true && media.redditVideoPreview.hasAudio != true) {
                     MediaType.REDDIT_GIF
                 } else {
                     MediaType.REDDIT_VIDEO
@@ -159,7 +163,7 @@ data class PostData(
                 }
             }
             domain == "v.redd.it" -> {
-                if (media?.redditVideoPreview?.isGif == true) {
+                if (media?.redditVideoPreview?.isGif == true && media.redditVideoPreview.hasAudio != true) {
                     MediaType.REDDIT_GIF
                 } else {
                     MediaType.REDDIT_VIDEO
@@ -168,12 +172,21 @@ data class PostData(
 
             media?.redditVideoPreview != null ||
                     mediaPreview?.videoPreview != null ||
+                    redgifsDirectVideoUrl != null ||
                     url.endsWith(".gif") ||
                     url.endsWith(".gifv") ||
                     url.endsWith(".mp4") ||
                     url.endsWith(".webm") -> {
-                MediaType.VIDEO
+                val videoPreview = media?.redditVideoPreview ?: mediaPreview?.videoPreview
+                if (videoPreview != null && (!videoPreview.isGif || videoPreview.hasAudio)) {
+                    MediaType.REDDIT_VIDEO
+                } else {
+                    MediaType.VIDEO
+                }
             }
+
+            domain.endsWith("gfycat.com") -> MediaType.GFYCAT
+            domain.endsWith("redgifs.com") -> MediaType.REDGIFS
 
             domain == "i.redd.it" -> MediaType.IMAGE
             hint?.contains("image") == true -> MediaType.IMAGE
@@ -192,6 +205,7 @@ data class PostData(
                 crossposts?.firstOrNull()?.mediaUrl
                     ?: media?.redditVideoPreview?.fallbackUrl
                     ?: mediaPreview?.videoPreview?.fallbackUrl
+                    ?: redgifsDirectVideoUrl
                     ?: mediaPreview?.images?.getOrNull(0)?.variants?.mp4?.imageSource?.url
             }
 
@@ -236,7 +250,11 @@ data class PostData(
             mediaMetadata?.items?.find { galleryItem ->
                 galleryItem.id == galleryDataItem.mediaId
             }?.let { item ->
-                item.image?.media
+                val thumb = item.previews?.let { previews ->
+                    previews.firstOrNull { !it.url.isNullOrBlank() && it.width >= 150 }?.url
+                        ?: previews.lastOrNull { !it.url.isNullOrBlank() }?.url
+                } ?: item.image?.url
+                item.image?.media?.copy(thumbnailUrl = thumb)
             }
         } ?: emptyList()
 
@@ -254,4 +272,11 @@ data class PostData(
                 }
             }
             ?: thumbnail
+
+    companion object {
+        private val REDGIFS_THUMBNAIL_REGEX = Regex(
+            "-(?:poster|mobile|thumb[^.]*)\\.(?:jpg|jpeg|png|webp)$",
+            RegexOption.IGNORE_CASE
+        )
+    }
 }

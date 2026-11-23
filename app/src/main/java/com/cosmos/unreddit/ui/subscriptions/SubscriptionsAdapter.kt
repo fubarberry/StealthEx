@@ -10,21 +10,47 @@ import coil.size.Precision
 import coil.size.Scale
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.db.Subscription
+import com.cosmos.unreddit.databinding.ItemSectionBinding
 import com.cosmos.unreddit.databinding.ItemSubscriptionBinding
 
 class SubscriptionsAdapter(
-    private val listener: (String) -> Unit
-) : ListAdapter<Subscription, SubscriptionsAdapter.SubscriptionViewHolder>(
+    private val listener: (String) -> Unit,
+    private val onPinClick: (Subscription) -> Unit,
+    private val onSubscribeClick: (Subscription) -> Unit
+) : ListAdapter<SubscriptionListItem, RecyclerView.ViewHolder>(
     SUBSCRIPTION_COMPARATOR
 ) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SubscriptionViewHolder {
-        val inflater = LayoutInflater.from(parent.context)
-        return SubscriptionViewHolder(ItemSubscriptionBinding.inflate(inflater, parent, false))
+    override fun getItemViewType(position: Int): Int {
+        return when (getItem(position)) {
+            is SubscriptionListItem.Section -> TYPE_SECTION
+            is SubscriptionListItem.SubredditItem -> TYPE_SUBSCRIPTION
+        }
     }
 
-    override fun onBindViewHolder(holder: SubscriptionViewHolder, position: Int) {
-        holder.bind(getItem(position))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            TYPE_SECTION -> SectionViewHolder(ItemSectionBinding.inflate(inflater, parent, false))
+            TYPE_SUBSCRIPTION -> SubscriptionViewHolder(ItemSubscriptionBinding.inflate(inflater, parent, false))
+            else -> throw IllegalArgumentException("Unknown viewType $viewType")
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = getItem(position)) {
+            is SubscriptionListItem.Section -> (holder as SectionViewHolder).bind(item)
+            is SubscriptionListItem.SubredditItem -> (holder as SubscriptionViewHolder).bind(item.subscription)
+        }
+    }
+
+    inner class SectionViewHolder(
+        private val binding: ItemSectionBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(section: SubscriptionListItem.Section) {
+            binding.title.text = binding.root.context.getString(section.titleRes)
+        }
     }
 
     inner class SubscriptionViewHolder(
@@ -43,6 +69,34 @@ class SubscriptionsAdapter(
                 fallback(R.drawable.icon_reddit_placeholder)
             }
 
+            binding.buttonPin.apply {
+                setImageResource(
+                    if (subscription.isPinned) R.drawable.ic_pin_slash else R.drawable.ic_pin
+                )
+                contentDescription = context.getString(
+                    if (subscription.isPinned) R.string.subreddit_button_unpin else R.string.subreddit_button_pin
+                )
+                setOnClickListener {
+                    onPinClick(subscription)
+                }
+            }
+
+            binding.buttonSubscribe.apply {
+                setImageResource(
+                    if (subscription.isSubscribed) R.drawable.ic_star_slash else R.drawable.ic_star
+                )
+                contentDescription = context.getString(
+                    if (subscription.isSubscribed) {
+                        R.string.subreddit_button_unsubscribe
+                    } else {
+                        R.string.subreddit_button_subscribe
+                    }
+                )
+                setOnClickListener {
+                    onSubscribeClick(subscription)
+                }
+            }
+
             itemView.setOnClickListener {
                 listener(subscription.name)
             }
@@ -50,13 +104,28 @@ class SubscriptionsAdapter(
     }
 
     companion object {
-        private val SUBSCRIPTION_COMPARATOR = object : DiffUtil.ItemCallback<Subscription>() {
+        private const val TYPE_SECTION = 0
+        private const val TYPE_SUBSCRIPTION = 1
 
-            override fun areItemsTheSame(oldItem: Subscription, newItem: Subscription): Boolean {
-                return oldItem.name == newItem.name
+        private val SUBSCRIPTION_COMPARATOR = object : DiffUtil.ItemCallback<SubscriptionListItem>() {
+
+            override fun areItemsTheSame(
+                oldItem: SubscriptionListItem,
+                newItem: SubscriptionListItem
+            ): Boolean {
+                return when {
+                    oldItem is SubscriptionListItem.Section && newItem is SubscriptionListItem.Section ->
+                        oldItem.titleRes == newItem.titleRes
+                    oldItem is SubscriptionListItem.SubredditItem && newItem is SubscriptionListItem.SubredditItem ->
+                        oldItem.subscription.name.equals(newItem.subscription.name, ignoreCase = true)
+                    else -> false
+                }
             }
 
-            override fun areContentsTheSame(oldItem: Subscription, newItem: Subscription): Boolean {
+            override fun areContentsTheSame(
+                oldItem: SubscriptionListItem,
+                newItem: SubscriptionListItem
+            ): Boolean {
                 return oldItem == newItem
             }
         }

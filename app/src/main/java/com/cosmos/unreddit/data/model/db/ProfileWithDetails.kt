@@ -24,5 +24,18 @@ data class ProfileWithDetails(
         parentColumn = "id",
         entityColumn = "profile_id"
     )
-    val savedComments: List<Comment.CommentEntity>
+    val savedComments: List<Comment.CommentEntity>,
+
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "profile_id"
+    )
+    val hiddenPosts: List<HiddenPostEntity>,
+
+    @Relation(
+        entity = Multireddit::class,
+        parentColumn = "id",
+        entityColumn = "profile_id"
+    )
+    val multireddits: List<MultiredditWithSubreddits>
 )

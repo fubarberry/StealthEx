@@ -130,4 +130,26 @@
       </aapt:attr>
     </path>
   </group>
+  <group
+      android:translateX="3.62"
+      android:translateY="3.90">
+    <path
+        android:pathData="M0.36,0.04 L0.04,0.04 L0.04,0.56 L0.36,0.56 M0.04,0.30 L0.31,0.30 M0.54,0.18 L0.90,0.56 M0.90,0.18 L0.54,0.56"
+        android:fillColor="#00000000"
+        android:strokeWidth="0.14"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+      <aapt:attr name="android:strokeColor">
+        <gradient
+            android:startX="0.0"
+            android:startY="0.60"
+            android:endX="0.94"
+            android:endY="0.0"
+            android:type="linear">
+          <item android:offset="0" android:color="#FF9A67EA"/>
+          <item android:offset="1" android:color="#FFFF6090"/>
+        </gradient>
+      </aapt:attr>
+    </path>
+  </group>
 </vector>

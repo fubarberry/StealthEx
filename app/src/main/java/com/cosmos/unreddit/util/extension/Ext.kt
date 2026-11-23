@@ -37,6 +37,7 @@ import com.cosmos.unreddit.ui.common.widget.PullToRefreshLayout
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
 import com.cosmos.unreddit.ui.sort.SortFragment
 import com.cosmos.unreddit.ui.feed.FeedFragment
+import com.cosmos.unreddit.ui.layout.LayoutFragment
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -92,6 +93,20 @@ fun Fragment.setFeedListener(result: (Int?) -> Unit) {
 
 fun Fragment.clearFeedListener() {
     childFragmentManager.clearFragmentResultListener(FeedFragment.REQUEST_KEY_FEED)
+}
+
+fun Fragment.setLayoutListener(result: (Int?) -> Unit) {
+    childFragmentManager.setFragmentResultListener(
+        LayoutFragment.REQUEST_KEY_LAYOUT,
+        viewLifecycleOwner
+    ) { _, bundle ->
+        val layout = bundle.getInt(LayoutFragment.BUNDLE_KEY_LAYOUT, 0)
+        result(layout)
+    }
+}
+
+fun Fragment.clearLayoutListener() {
+    childFragmentManager.clearFragmentResultListener(LayoutFragment.REQUEST_KEY_LAYOUT)
 }
 
 fun Fragment.setCommentListener(result: (Comment.CommentEntity?) -> Unit) {
@@ -175,7 +190,7 @@ fun PagingDataAdapter<out Any, out RecyclerView.ViewHolder>.isEmpty(): Boolean {
 }
 
 fun PagingDataAdapter<out Any, out RecyclerView.ViewHolder>.addLoadStateListener(
-    list: RecyclerView,
+    @Suppress("UNUSED_PARAMETER") list: RecyclerView,
     binding: IncludeLoadingStateBinding,
     pullToRefreshLayout: PullToRefreshLayout? = null,
     onError: () -> Unit

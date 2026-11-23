@@ -33,6 +33,7 @@ import com.cosmos.unreddit.ui.common.widget.PullToRefreshView
 import com.cosmos.unreddit.ui.loadstate.NetworkLoadStateAdapter
 import com.cosmos.unreddit.ui.sort.SortFragment
 import com.cosmos.unreddit.ui.feed.FeedFragment
+import com.cosmos.unreddit.ui.layout.LayoutFragment
 import com.cosmos.unreddit.util.DateUtil
 import com.cosmos.unreddit.util.extension.applyMarginWindowInsets
 import com.cosmos.unreddit.util.extension.applyWindowInsets
@@ -47,6 +48,8 @@ import com.cosmos.unreddit.util.extension.setNavigationListener
 import com.cosmos.unreddit.util.extension.setSortingListener
 import com.cosmos.unreddit.util.extension.setFeedListener
 import com.cosmos.unreddit.util.extension.clearFeedListener
+import com.cosmos.unreddit.util.extension.setLayoutListener
+import com.cosmos.unreddit.util.extension.clearLayoutListener
 import com.google.android.material.appbar.AppBarLayout
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
@@ -66,9 +69,15 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     // scroll
     private val onOffsetChangedListener = object : AppBarLayout.OnOffsetChangedListener {
         var visible: Boolean = true
-            private set
 
         override fun onOffsetChanged(appBarLayout: AppBarLayout?, verticalOffset: Int) {
+            if (_binding?.listPost?.isFullscreenMode == true) {
+                if (!visible) {
+                    visible = true
+                    uiViewModel.setNavigationVisibility(true)
+                }
+                return
+            }
             if (verticalOffset != 0 && visible) {
                 visible = false
                 uiViewModel.setNavigationVisibility(false)
@@ -78,6 +87,8 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             }
         }
     }
+
+    private var systemBarsBottomInset: Int = 0
 
     private val contentScale by lazy { resources.getFloatValue(R.dimen.subreddit_content_scale) }
     private val contentRadius by lazy { resources.getDimension(R.dimen.subreddit_content_radius) }
@@ -124,12 +135,16 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     }
 
     override fun applyInsets(view: View) {
+        ViewCompat.getRootWindowInsets(view)
+            ?.getInsets(WindowInsetsCompat.Type.systemBars())
+            ?.let { insets ->
+                systemBarsBottomInset = insets.bottom
+            }
+
         ViewCompat.setOnApplyWindowInsetsListener(view) { rootView, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-            binding.appBar.root.updateLayoutParams<AppBarLayout.LayoutParams> {
-                topMargin = insets.top
-            }
+            binding.container.setContentPadding(0, insets.top, 0, 0)
 
             binding.listProfiles.run {
                 updatePadding(
@@ -140,10 +155,42 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
                 )
             }
 
+            systemBarsBottomInset = insets.bottom
+            updatePostListBottomPadding()
+
             rootView.clearWindowInsetsListener()
 
             windowInsets
         }
+
+        if (view.isAttachedToWindow) {
+            ViewCompat.requestApplyInsets(view)
+        } else {
+            view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    v.removeOnAttachStateChangeListener(this)
+                    ViewCompat.requestApplyInsets(v)
+                }
+
+                override fun onViewDetachedFromWindow(v: View) = Unit
+            })
+        }
+    }
+
+    private fun updatePostListBottomPadding() {
+        val binding = _binding ?: return
+        val extraBottomPadding = if (binding.listPost.isFullscreenMode) {
+            val bottomNav = activity?.findViewById<View>(R.id.bottom_navigation)
+            val navHeight = bottomNav?.height?.takeIf { it > 0 }
+                ?: resources.getDimensionPixelSize(
+                    com.google.android.material.R.dimen.design_bottom_navigation_height
+                )
+            val navMargin = resources.getDimensionPixelSize(R.dimen.bottom_navigation_margin)
+            navHeight + navMargin
+        } else {
+            0
+        }
+        binding.listPost.updatePadding(bottom = systemBarsBottomInset + extraBottomPadding)
     }
 
     private fun bindViewModel() {
@@ -156,11 +203,46 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             }
 
             launch {
-                viewModel.useCompactLayout.collect { useCompact ->
-                    postListAdapter.useCompactLayout = useCompact
-                    binding.appBar.layoutToggleCard.setIcon(
-                        if (useCompact) R.drawable.ic_layout_large else R.drawable.ic_layout_compact
-                    )
+                viewModel.layoutType.collect { layoutType ->
+                    val isFullscreen = (layoutType == 2)
+                    postListAdapter.layoutType = layoutType
+                    binding.listPost.isFullscreenMode = isFullscreen
+                    binding.pullRefresh.isNestedScrollingEnabled = !isFullscreen
+                    updatePostListBottomPadding()
+                    uiViewModel.setNavigationAutoHide(!isFullscreen)
+                    if (isFullscreen) {
+                        onOffsetChangedListener.visible = true
+                        uiViewModel.setNavigationVisibility(true)
+                    }
+                    (binding.appBar.root.layoutParams as? AppBarLayout.LayoutParams)?.let { params ->
+                        val desiredFlags = if (isFullscreen) {
+                            0
+                        } else {
+                            AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                                AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS
+                        }
+                        if (params.scrollFlags != desiredFlags) {
+                            params.scrollFlags = desiredFlags
+                            binding.appBar.root.layoutParams = params
+                            binding.appBarLayout.setExpanded(true, false)
+                            binding.pullRefresh.requestLayout()
+                        }
+                    }
+                    binding.appBar.layoutToggleCard.apply {
+                        val iconRes = when (layoutType) {
+                            1 -> R.drawable.ic_layout_compact
+                            2 -> R.drawable.ic_layout_fullscreen
+                            else -> R.drawable.ic_layout_large
+                        }
+                        val descRes = when (layoutType) {
+                            1 -> R.string.layout_compact
+                            2 -> R.string.layout_fullscreen
+                            else -> R.string.layout_card
+                        }
+                        setIcon(iconRes)
+                        setIconTint(null)
+                        contentDescription = getString(descRes)
+                    }
                 }
             }
 
@@ -296,7 +378,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
         }
 
         binding.listPost.apply {
-            applyWindowInsets(left = false, top = false, right = false)
+            updatePostListBottomPadding()
             layoutManager = LinearLayoutManager(requireContext())
             adapter = postListAdapter.withLoadStateHeaderAndFooter(
                 header = NetworkLoadStateAdapter { postListAdapter.retry() },
@@ -315,23 +397,8 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             onSwipeRight = { position ->
                 val post = postListAdapter.peek(position)
                 if (post != null) {
-                    val viewHolder = binding.listPost.findViewHolderForAdapterPosition(position)
-                    viewHolder?.itemView?.translationX = 0f
-                    viewHolder?.itemView?.alpha = 0f
                     viewModel.toggleSavePost(post)
-                    
-                    postListAdapter.notifyItemChanged(position)
-                    
-                    viewHolder?.itemView?.postDelayed({
-                        val updatedViewHolder = binding.listPost.findViewHolderForAdapterPosition(position)
-                        val saveButton = updatedViewHolder?.itemView?.findViewById<CheckableImageView>(R.id.button_save)
-                        if (saveButton != null) {
-                            post.saved = !post.saved
-                            saveButton.isChecked = post.saved
-                        } else {
-                            post.saved = !post.saved
-                        }
-                    }, 350)
+                    post.saved = !post.saved
                 }
             }
         )
@@ -351,7 +418,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
             sortCard.setOnClickListener { showSortDialog() }
             title.setOnClickListener { scrollToTop() }
             layoutToggleCard.setOnClickListener {
-                viewModel.setUseCompactLayout(!postListAdapter.useCompactLayout)
+                showLayoutDialog()
             }
             feedToggleCard.setOnClickListener {
                 showFeedDialog()
@@ -373,14 +440,31 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
                 android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
             }
         }
+        setLayoutListener { layout ->
+            layout?.let {
+                viewModel.setLayoutType(it)
+                val message = when (it) {
+                    1 -> R.string.layout_compact
+                    2 -> R.string.layout_fullscreen
+                    else -> R.string.layout_card
+                }
+                android.widget.Toast.makeText(requireContext(), message, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
 
         setNavigationListener { showNavigation ->
-            uiViewModel.setNavigationVisibility(showNavigation && onOffsetChangedListener.visible)
+            uiViewModel.setNavigationVisibility(
+                showNavigation && (binding.listPost.isFullscreenMode || onOffsetChangedListener.visible)
+            )
         }
     }
 
     fun scrollToTop() {
         binding.listPost.betterSmoothScrollToPosition(0)
+        if (binding.listPost.isFullscreenMode && !onOffsetChangedListener.visible) {
+            onOffsetChangedListener.visible = true
+            uiViewModel.setNavigationVisibility(true)
+        }
     }
 
     private fun showSortDialog() {
@@ -391,6 +475,13 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
         viewLifecycleOwner.lifecycleScope.launch {
             val currentFeedType = viewModel.homeFeedType.first()
             FeedFragment.show(childFragmentManager, currentFeedType)
+        }
+    }
+
+    private fun showLayoutDialog() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentLayoutType = viewModel.layoutType.first()
+            LayoutFragment.show(childFragmentManager, currentLayoutType)
         }
     }
 
@@ -436,14 +527,30 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
         }
     }
 
+    override fun onPauseFullscreenMedia() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.pausePlayback()
+        }
+    }
+
+    override fun onResumeFullscreenMedia() {
+        if (_binding != null && ::postListAdapter.isInitialized) {
+            postListAdapter.resumePlayback()
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         clearSortingListener()
         clearFeedListener()
+        clearLayoutListener()
         clearNavigationListener()
     }
 
     override fun onDestroyView() {
+        if (::postListAdapter.isInitialized) {
+            postListAdapter.releasePlayer()
+        }
         super.onDestroyView()
 
         (binding.pullRefresh.refreshView as? PullToRefreshLayout.RefreshCallback)?.reset()

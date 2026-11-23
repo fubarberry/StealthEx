@@ -4,6 +4,15 @@
     <item android:id="@+id/search"
         android:title="@string/menu_search" />
 
+    <item android:id="@+id/subscribe"
+        android:title="@string/subreddit_button_subscribe" />
+
+    <item android:id="@+id/pin"
+        android:title="@string/subreddit_button_pin" />
+
+    <item android:id="@+id/multireddit"
+        android:title="@string/menu_add_to_multireddit" />
+
     <item android:id="@+id/sidebar"
         android:title="@string/menu_sidebar" />
 </menu>

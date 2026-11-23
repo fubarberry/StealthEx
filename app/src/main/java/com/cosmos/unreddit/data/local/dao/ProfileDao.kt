@@ -19,6 +19,9 @@ abstract class ProfileDao : BaseDao<Profile> {
     @Query("SELECT * FROM profile WHERE id = :id")
     abstract suspend fun getProfileFromId(id: Int): Profile?
 
+    @Query("SELECT * FROM profile WHERE name = :name COLLATE NOCASE LIMIT 1")
+    abstract suspend fun getProfileByName(name: String): Profile?
+
     @Query("SELECT * FROM profile LIMIT 1")
     abstract suspend fun getFirstProfile(): Profile
 

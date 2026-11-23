@@ -27,8 +27,9 @@ class MediaMetadataAdapter(
         reader.beginObject()
 
         while (reader.hasNext()) {
-            reader.skipName()
-            items.add(galleryItemAdapter.fromJson(reader)!!)
+            val key = reader.nextName()
+            val item = galleryItemAdapter.fromJson(reader)!!
+            items.add(if (item.id == null) item.copy(id = key) else item)
         }
 
         reader.endObject()

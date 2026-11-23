@@ -56,13 +56,32 @@ class PreferencesRepository @Inject constructor(
             UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT,
             useCompactLayout
         )
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.LAYOUT_TYPE,
+            if (useCompactLayout) 1 else 0
+        )
     }
 
-    fun getUseCompactLayout(defaultValue: Boolean = false): Flow<Boolean> {
-        return preferencesDatastore.getValue(
-            UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT,
-            defaultValue
+    fun getUseCompactLayout(@Suppress("UNUSED_PARAMETER") defaultValue: Boolean = false): Flow<Boolean> {
+        return getLayoutType().map { it == 1 }
+    }
+
+    suspend fun setLayoutType(layoutType: Int) {
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.LAYOUT_TYPE,
+            layoutType
         )
+        preferencesDatastore.setValue(
+            UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT,
+            layoutType == 1
+        )
+    }
+
+    fun getLayoutType(): Flow<Int> {
+        return preferencesDatastore.data.map { preferences ->
+            preferences[UiPreferences.PreferencesKeys.LAYOUT_TYPE]
+                ?: if (preferences[UiPreferences.PreferencesKeys.USE_COMPACT_LAYOUT] == true) 1 else 0
+        }
     }
 
     suspend fun setUsePopularFeed(usePopularFeed: Boolean) {
@@ -143,7 +162,7 @@ class PreferencesRepository @Inject constructor(
         )
     }
 
-    fun getRedditSource(defaultValue: Int = DataPreferences.RedditSource.REDDIT_SCRAP.value): Flow<Int> {
+    fun getRedditSource(defaultValue: Int = DataPreferences.RedditSource.REDDIT.value): Flow<Int> {
         return preferencesDatastore.getValue(
             DataPreferences.PreferencesKeys.REDDIT_SOURCE,
             defaultValue

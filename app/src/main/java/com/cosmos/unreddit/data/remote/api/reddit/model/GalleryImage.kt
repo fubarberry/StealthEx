@@ -16,7 +16,10 @@ data class GalleryImage(
     val url: String?,
 
     @Json(name = "mp4")
-    val mp4: String?
+    val mp4: String?,
+
+    @Json(name = "gif")
+    val gif: String? = null
 ) {
     val media: GalleryMedia?
         get() = when {
@@ -25,6 +28,9 @@ data class GalleryImage(
             }
             mp4 != null -> {
                 GalleryMedia(GalleryMedia.Type.VIDEO, mp4)
+            }
+            gif != null -> {
+                GalleryMedia(GalleryMedia.Type.IMAGE, gif)
             }
             else -> null
         }

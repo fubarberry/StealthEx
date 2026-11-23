@@ -47,7 +47,12 @@ class UserFragment : BaseFragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel.setUser(args.user.removeSuffix("/"))
+        val cleanUser = args.user
+            .removePrefix("/")
+            .removePrefix("u/")
+            .removePrefix("user/")
+            .removeSuffix("/")
+        viewModel.setUser(cleanUser)
     }
 
     override fun onCreateView(
@@ -171,7 +176,22 @@ class UserFragment : BaseFragment() {
 
     private fun handleError(code: Int?) {
         when (code) {
-            403 -> showUnauthorizedDialog()
+            403 -> {
+                bindInfo(
+                    User(
+                        isSuspended = false,
+                        displayName = viewModel.user.value,
+                        title = null,
+                        over18 = false,
+                        icon = null,
+                        url = null,
+                        publicDescription = null,
+                        postKarma = 0,
+                        commentKarma = 0,
+                        created = 0L
+                    )
+                )
+            }
             404 -> showNotFoundDialog()
             else -> showRetryBar()
         }

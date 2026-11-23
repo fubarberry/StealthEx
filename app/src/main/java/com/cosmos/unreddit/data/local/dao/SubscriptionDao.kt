@@ -8,6 +8,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 abstract class SubscriptionDao : BaseDao<Subscription> {
 
+    @Query("SELECT * FROM subscription WHERE name = :name AND profile_id = :profileId LIMIT 1")
+    abstract suspend fun getSubscriptionFromNameAndProfile(name: String, profileId: Int): Subscription?
+
     @Query("DELETE FROM subscription WHERE name = :name AND profile_id = :profileId")
     abstract suspend fun deleteFromNameAndProfile(name: String, profileId: Int)
 
@@ -17,6 +20,9 @@ abstract class SubscriptionDao : BaseDao<Subscription> {
     @Query("SELECT * FROM subscription WHERE profile_id = :profileId")
     abstract fun getSubscriptionsFromProfile(profileId: Int): Flow<List<Subscription>>
 
-    @Query("SELECT name FROM subscription WHERE profile_id = :profileId")
+    @Query("SELECT name FROM subscription WHERE profile_id = :profileId AND is_subscribed = 1")
     abstract fun getSubscriptionsNamesFromProfile(profileId: Int): Flow<List<String>>
+
+    @Query("SELECT name FROM subscription WHERE profile_id = :profileId AND is_pinned = 1")
+    abstract fun getPinnedNamesFromProfile(profileId: Int): Flow<List<String>>
 }

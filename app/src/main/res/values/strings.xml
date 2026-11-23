@@ -3,9 +3,8 @@
     <string name="app_version_name" translatable="false">Blackbird</string>
     <string name="app_description">An account-free, privacy-oriented, feature-rich Reddit client</string>
 
-    <string name="gitlab_link" translatable="false">https://gitlab.com/cosmosapps/stealth</string>
-    <string name="matrix_link" translatable="false">https://matrix.to/#/#stealth-app:matrix.org</string>
-    <string name="email" translatable="false">cosmos.dev@protonmail.com</string>
+    <string name="github_link" translatable="false">https://github.com/fubarberry/StealthEx</string>
+    <string name="email" translatable="false">mitkebes@gmail.com</string>
 
     <string name="ok">OK</string>
 
@@ -58,6 +57,10 @@
 
     <string name="fragment_subscriptions_label">Subscriptions</string>
     <string name="subscriptions_search_hint">Search through Reddit</string>
+    <string name="dialog_go_to_subreddit_title">Go to Subreddit</string>
+    <string name="dialog_go_to_subreddit_hint">Subreddit name (e.g. Android)</string>
+    <string name="dialog_go_to_subreddit_button">Open</string>
+    <string name="subreddit_blank_error">Subreddit name cannot be blank</string>
 
     <string name="search_hint">Search through Reddit</string>
     <string name="search_hint_subreddit">Search in %1$s</string>
@@ -70,6 +73,12 @@
 
     <string name="subreddit_button_unsubscribe">Unsubscribe</string>
     <string name="subreddit_button_subscribe">Subscribe</string>
+    <string name="subreddit_button_pin">Pin</string>
+    <string name="subreddit_button_unpin">Unpin</string>
+    <string name="subscriptions_section_pinned">Pinned</string>
+    <string name="subscriptions_section_subscribed">Subscriptions</string>
+    <string name="dialog_unsubscribe_title">Unsubscribe</string>
+    <string name="dialog_unsubscribe_body">Are you sure you want to unsubscribe from %1$s?</string>
     <string name="subreddit_subscribers">Subscribers</string>
     <string name="subreddit_active_users">Online</string>
 
@@ -298,4 +307,40 @@
     <string name="feed_popular">Popular</string>
     <string name="feed_all">All</string>
     <string name="feed_title">Choose Feed</string>
+
+    <string name="tab_subscriptions_subreddits">Subreddits</string>
+    <string name="tab_subscriptions_multireddits">Multireddits</string>
+    <string name="empty_data_multireddits">You have no multireddits yet.\nTap + or add a subreddit from its page to create one.</string>
+    <string name="multireddit_button_short">Multi</string>
+    <string name="menu_add_to_multireddit">Add to multireddit</string>
+    <string name="dialog_add_to_multireddit_title">Add r/%s to multireddit</string>
+    <string name="dialog_new_multireddit_button">New multireddit</string>
+    <string name="dialog_create_multireddit_title">New multireddit</string>
+    <string name="dialog_rename_multireddit_title">Rename multireddit</string>
+    <string name="dialog_multireddit_name_hint">Multireddit name</string>
+    <string name="dialog_multireddit_name_blank_error">Name cannot be blank</string>
+    <string name="dialog_multireddit_create_button">Create</string>
+    <string name="dialog_multireddit_save_button">Save</string>
+    <string name="dialog_delete_multireddit_title">Delete multireddit</string>
+    <string name="dialog_delete_multireddit_body">Delete \"%s\"? This cannot be undone.</string>
+    <string name="dialog_delete_multireddit_button">Delete</string>
+    <string name="dialog_edit_multireddit_subreddits_title">Edit subreddits</string>
+    <string name="dialog_edit_multireddit_add_hint">Add subreddit (e.g. android)</string>
+    <string name="dialog_edit_multireddit_add_button">Add</string>
+    <string name="menu_multireddit_edit_subreddits">Edit subreddits</string>
+    <string name="menu_multireddit_rename">Rename</string>
+    <string name="menu_multireddit_delete">Delete</string>
+    <string name="multireddit_empty_subreddits">No subreddits in this multireddit yet.\nOpen the menu to add subreddits.</string>
+    <string name="multireddit_subreddit_count_one">1 subreddit</string>
+    <string name="multireddit_subreddit_count_other">%d subreddits</string>
+    <string name="multireddit_no_subreddits">No subreddits</string>
+
+    <string name="layout_card">Card</string>
+    <string name="layout_compact">Compact</string>
+    <string name="layout_fullscreen">Fullscreen</string>
+    <string name="layout_title">Choose View Mode</string>
+
+    <string name="webview_verify_title">Verify in Browser</string>
+    <string name="webview_verify_done">Done</string>
+    <string name="menu_verify_webview">Verify in Browser</string>
 </resources>

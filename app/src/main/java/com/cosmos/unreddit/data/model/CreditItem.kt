@@ -21,6 +21,7 @@ sealed class CreditItem {
     ) : CreditItem() {
         enum class LicenseType(val license: String) {
             APACHE_V2("Apache License 2.0"),
+            GPL_V3("GNU General Public License v3.0"),
             MIT("MIT License"),
             OPEN_FONT_V1_1("SIL Open Font License v1.10"),
             OTHER("")

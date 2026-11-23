@@ -19,14 +19,17 @@ class UiViewModel @Inject constructor(
         .getLeftHandedMode()
         .distinctUntilChanged()
 
-    val policyDisclaimerShown: Flow<Boolean> = preferencesRepository
-        .getPolicyDisclaimerShown(false)
-        .distinctUntilChanged()
-
     private val _navigationVisibility = MutableStateFlow(true)
     val navigationVisibility: StateFlow<Boolean> = _navigationVisibility
 
+    private val _navigationAutoHide = MutableStateFlow(true)
+    val navigationAutoHide: StateFlow<Boolean> = _navigationAutoHide
+
     fun setNavigationVisibility(visible: Boolean) {
         _navigationVisibility.updateValue(visible)
+    }
+
+    fun setNavigationAutoHide(autoHide: Boolean) {
+        _navigationAutoHide.updateValue(autoHide)
     }
 }

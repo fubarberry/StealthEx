@@ -252,6 +252,14 @@ class PostDetailsFragment : BaseFragment(),
             }
         }
         setCommentListener { comment -> comment?.let { viewModel.toggleSaveComment(it) } }
+        childFragmentManager.setFragmentResultListener(
+            RedditWebViewDialogFragment.REQUEST_KEY_WEBVIEW,
+            viewLifecycleOwner
+        ) { _, bundle ->
+            if (bundle.getBoolean(RedditWebViewDialogFragment.BUNDLE_KEY_REFRESH, false)) {
+                viewModel.loadPost(true)
+            }
+        }
     }
 
     private fun bindPost(post: PostEntity, fromCache: Boolean) {
@@ -311,7 +319,15 @@ class PostDetailsFragment : BaseFragment(),
     }
 
     private fun retry() {
-        viewModel.loadPost(true)
+        val currentComments = resourceStateAdapter.resource
+        if (currentComments is Resource.Error && currentComments.code == 403) {
+            RedditWebViewDialogFragment.show(
+                childFragmentManager,
+                viewModel.permalink.value ?: postEntity?.permalink
+            )
+        } else {
+            viewModel.loadPost(true)
+        }
     }
 
     private fun showSortDialog() {
@@ -352,6 +368,12 @@ class PostDetailsFragment : BaseFragment(),
         val post = postEntity ?: return false
         when (item.itemId) {
             R.id.refresh -> viewModel.loadPost(true)
+            R.id.verify_webview -> {
+                RedditWebViewDialogFragment.show(
+                    childFragmentManager,
+                    viewModel.permalink.value ?: post.permalink
+                )
+            }
             R.id.hide_post -> {
                 lifecycleScope.launch {
                     val prefProfileId = preferencesRepository.getCurrentProfile().first()

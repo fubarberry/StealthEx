@@ -8,6 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cosmos.unreddit.data.local.dao.CommentDao
 import com.cosmos.unreddit.data.local.dao.HistoryDao
 import com.cosmos.unreddit.data.local.dao.HiddenPostDao
+import com.cosmos.unreddit.data.local.dao.MultiredditDao
 import com.cosmos.unreddit.data.local.dao.PostDao
 import com.cosmos.unreddit.data.local.dao.ProfileDao
 import com.cosmos.unreddit.data.local.dao.RedirectDao
@@ -15,6 +16,8 @@ import com.cosmos.unreddit.data.local.dao.SubscriptionDao
 import com.cosmos.unreddit.data.model.Comment
 import com.cosmos.unreddit.data.model.db.History
 import com.cosmos.unreddit.data.model.db.HiddenPostEntity
+import com.cosmos.unreddit.data.model.db.Multireddit
+import com.cosmos.unreddit.data.model.db.MultiredditSubreddit
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.model.db.Redirect
@@ -28,9 +31,11 @@ import com.cosmos.unreddit.data.model.db.Subscription
         PostEntity::class,
         HiddenPostEntity::class,
         Comment.CommentEntity::class,
-        Redirect::class
+        Redirect::class,
+        Multireddit::class,
+        MultiredditSubreddit::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -49,6 +54,8 @@ abstract class RedditDatabase : RoomDatabase() {
     abstract fun commentDao(): CommentDao
 
     abstract fun redirectDao(): RedirectDao
+
+    abstract fun multiredditDao(): MultiredditDao
 
     class Callback : RoomDatabase.Callback() {
         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -228,6 +235,37 @@ abstract class RedditDatabase : RoomDatabase() {
                     )
                     """.trimIndent())
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_hidden_post_profile_id` ON `hidden_post` (`profile_id`)")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `subscription` ADD COLUMN `is_subscribed` INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE `subscription` ADD COLUMN `is_pinned` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `multireddit` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `time` INTEGER NOT NULL,
+                        `profile_id` INTEGER NOT NULL,
+                        FOREIGN KEY(`profile_id`) REFERENCES `profile`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_multireddit_profile_id` ON `multireddit` (`profile_id`)")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `multireddit_subreddit` (
+                        `multireddit_id` INTEGER NOT NULL,
+                        `subreddit` TEXT NOT NULL COLLATE NOCASE,
+                        PRIMARY KEY(`multireddit_id`, `subreddit`),
+                        FOREIGN KEY(`multireddit_id`) REFERENCES `multireddit`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent())
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_multireddit_subreddit_multireddit_id` ON `multireddit_subreddit` (`multireddit_id`)")
             }
         }
     }

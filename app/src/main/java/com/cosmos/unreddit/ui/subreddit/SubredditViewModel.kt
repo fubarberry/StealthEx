@@ -10,6 +10,7 @@ import com.cosmos.unreddit.data.model.Data
 import com.cosmos.unreddit.data.model.Resource
 import com.cosmos.unreddit.data.model.Sort
 import com.cosmos.unreddit.data.model.Sorting
+import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.SubredditEntity
 import com.cosmos.unreddit.data.model.preferences.ContentPreferences
@@ -84,6 +85,26 @@ class SubredditViewModel @Inject constructor(
         SharingStarted.WhileSubscribed(5000),
         false
     )
+
+    val isPinned: StateFlow<Boolean> = combine(
+        _subreddit,
+        pinnedNames
+    ) { _subreddit, names ->
+        names.any { it.equals(_subreddit, ignoreCase = true) }
+    }.flowOn(
+        defaultDispatcher
+    ).stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        false
+    )
+
+    val availableMultireddits: StateFlow<List<MultiredditWithSubreddits>> = multireddits
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
 
     private val subredditName: String
         get() = about.value.dataValue?.displayName ?: subreddit.value
@@ -194,6 +215,51 @@ class SubredditViewModel @Inject constructor(
                 } else {
                     repository.subscribe(subredditName, it.id, icon)
                 }
+            }
+        }
+    }
+
+    fun togglePin() {
+        viewModelScope.launch {
+            currentProfile.latest?.let {
+                if (isPinned.value) {
+                    repository.unpin(subredditName, it.id)
+                } else {
+                    repository.pin(subredditName, it.id, icon)
+                }
+            }
+        }
+    }
+
+    fun getCurrentSubredditName(): String = subredditName
+
+    fun updateMultiredditMembership(selectedIds: Set<Int>) {
+        val name = subredditName
+        if (name.isBlank()) return
+        val currentList = availableMultireddits.value
+        viewModelScope.launch {
+            currentList.forEach { multi ->
+                val isCurrentlyMember = multi.containsSubreddit(name)
+                val shouldBeMember = selectedIds.contains(multi.multireddit.id)
+                if (shouldBeMember && !isCurrentlyMember) {
+                    repository.addSubredditToMultireddit(multi.multireddit.id, name)
+                } else if (!shouldBeMember && isCurrentlyMember) {
+                    repository.removeSubredditFromMultireddit(multi.multireddit.id, name)
+                }
+            }
+        }
+    }
+
+    fun createMultiredditWithSubreddit(name: String) {
+        val subName = subredditName
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            currentProfile.latest?.let { profile ->
+                repository.createMultireddit(
+                    name = name,
+                    profileId = profile.id,
+                    initialSubreddits = if (subName.isNotBlank()) listOf(subName) else emptyList()
+                )
             }
         }
     }

@@ -51,34 +51,40 @@ class StealthBackupManager @Inject constructor(
         )
 
         return runCatching {
-            withContext(ioDispatcher) {
+            val profiles = withContext(ioDispatcher) {
                 appContext.contentResolver.openInputStream(uri)?.use { inputStream ->
                     inputStream.source().buffer().use { bufferedSource ->
                         adapter.fromJson(bufferedSource)
                     }
-                } ?: emptyList()
+                } ?: error("Unable to open backup file")
             }
-        }.onSuccess { profiles ->
             insertProfiles(profiles)
+            profiles
+        }.onFailure { e ->
+            android.util.Log.e("StealthEx", "Backup import failed", e)
         }
     }
 
     override suspend fun export(uri: Uri): Result<List<Profile>> {
-        val profiles = getProfiles()
-
         val adapter = moshi.adapter<List<Profile>>(
             Types.newParameterizedType(List::class.java, Profile::class.java)
         ).indent("  ")
 
         return runCatching {
+            val profiles = getProfiles()
             withContext(ioDispatcher) {
-                appContext.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                val stream = appContext.contentResolver.openOutputStream(uri, "wt")
+                    ?: appContext.contentResolver.openOutputStream(uri)
+                    ?: error("Unable to open backup output file")
+                stream.use { outputStream ->
                     outputStream.sink().buffer().use { bufferedSink ->
                         adapter.toJson(bufferedSink, profiles)
                     }
                 }
             }
             profiles
+        }.onFailure { e ->
+            android.util.Log.e("StealthEx", "Backup export failed", e)
         }
     }
 }

@@ -175,40 +175,46 @@ class CommentAdapter(
             .map {
                 restoreCommentHierarchy(it, comment.depth)
             }
+            .map {
+                prepareLoadedComments(it, post)
+            }
             .map { comments ->
                 comment.apply { isLoading = false; isError = false }
-
-                comments.forEach { comment ->
-                    (comment as? CommentEntity)?.run {
-                        linkTitle = linkTitle ?: post.title
-                        linkPermalink = linkPermalink ?: post.permalink
-                        linkAuthor = linkAuthor ?: post.author
-                        saved = savedIds.contains(comment.name)
-                    }
-                }
 
                 if (comment.depth > 0) {
                     val parentComment = newList.find { it.name == comment.parent }
 
-                    if (parentComment != null &&
-                        parentComment is CommentEntity &&
-                        parentComment.isExpanded
-                    ) {
-                        parentComment.replies.removeLastOrNull()
+                    if (parentComment is CommentEntity) {
+                        val moreIdx = parentComment.replies.indexOfFirst {
+                            it is MoreEntity && it.id == comment.id
+                        }
+                        if (moreIdx != -1) {
+                            parentComment.replies.removeAt(moreIdx)
+                        } else {
+                            parentComment.replies.removeLastOrNull()
+                        }
                         parentComment.replies.addAll(comments)
                         if (containsMoreComments) {
                             parentComment.replies.add(comment)
                         }
-                    } else {
-                        return@map newList
+                        if (!parentComment.isExpanded) {
+                            return@map newList
+                        }
                     }
                 }
 
-                newList.removeAt(position)
-                newList.addAll(position, comments)
+                val currentPosition = newList.indexOfFirst {
+                    it is MoreEntity && it.id == comment.id
+                }.takeIf { it != -1 } ?: position.takeIf {
+                    it in newList.indices && newList[it] == comment
+                } ?: return@map newList
+
+                val expandedComments = getExpandedReplies(comments)
+                newList.removeAt(currentPosition)
+                newList.addAll(currentPosition, expandedComments)
 
                 if (containsMoreComments) {
-                    newList.add(position + comments.size, comment)
+                    newList.add(currentPosition + expandedComments.size, comment)
                 }
 
                 return@map newList
@@ -293,7 +299,7 @@ class CommentAdapter(
 
             if (comment is CommentEntity && nextComment != null && nextComment.depth > depth) {
                 comment.replies.addAll(
-                    restoreCommentHierarchy(comments.subList(i + 1, comments.lastIndex), depth + 1)
+                    restoreCommentHierarchy(comments.subList(i + 1, comments.size), depth + 1)
                 )
                 comment.visibleReplyCount = comment.replies.size
             }
@@ -302,6 +308,29 @@ class CommentAdapter(
         }
 
         return@withContext restored
+    }
+
+    private fun prepareLoadedComments(
+        comments: List<Comment>,
+        post: PostEntity
+    ): List<Comment> {
+        val filtered = comments.filter { it.depth < COMMENT_DEPTH_LIMIT }
+        for (item in filtered) {
+            if (item is CommentEntity) {
+                item.linkTitle = item.linkTitle ?: post.title
+                item.linkPermalink = item.linkPermalink ?: post.permalink
+                item.linkAuthor = item.linkAuthor ?: post.author
+                item.saved = savedIds.contains(item.name)
+                val filteredReplies = prepareLoadedComments(item.replies, post)
+                item.replies.clear()
+                item.replies.addAll(filteredReplies)
+                item.visibleReplyCount = item.replies.size
+                if (item.replies.isNotEmpty() && item.depth < COMMENT_DEPTH_LIMIT - 1) {
+                    item.isExpanded = true
+                }
+            }
+        }
+        return filtered
     }
 
     fun cleanUp() {

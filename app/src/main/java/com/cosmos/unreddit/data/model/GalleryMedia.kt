@@ -13,7 +13,9 @@ data class GalleryMedia(
 
     val sound: String? = null,
 
-    val description: String? = null
+    val description: String? = null,
+
+    val thumbnailUrl: String? = null
 ) : Parcelable {
 
     enum class Type(val value: Int) {

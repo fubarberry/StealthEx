@@ -16,4 +16,10 @@ data class Profile(
 
     @Json(name = "saved_comments")
     val savedComments: List<Comment>? = null,
+
+    @Json(name = "hidden_posts")
+    val hiddenPosts: List<Post>? = null,
+
+    @Json(name = "multireddits")
+    val multireddits: List<Multireddit>? = null
 )

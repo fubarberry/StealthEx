@@ -12,5 +12,11 @@ data class Subscription(
     val time: Long,
 
     @Json(name = "icon")
-    val icon: String?
+    val icon: String?,
+
+    @Json(name = "is_subscribed")
+    val isSubscribed: Boolean = true,
+
+    @Json(name = "is_pinned")
+    val isPinned: Boolean = false
 )

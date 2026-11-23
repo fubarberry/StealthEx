@@ -62,6 +62,7 @@ class HideBottomViewBehavior<V: View> @JvmOverloads constructor(
         type: Int,
         consumed: IntArray
     ) {
+        if (!enabled) return
         if (dyConsumed > 0) {
             slideOut(child)
         } else if (dyConsumed < 0) {

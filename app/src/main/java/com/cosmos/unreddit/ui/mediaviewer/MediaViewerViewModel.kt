@@ -19,6 +19,7 @@ import com.cosmos.unreddit.di.DispatchersModule.DefaultDispatcher
 import com.cosmos.unreddit.util.LinkUtil
 import com.cosmos.unreddit.util.LinkUtil.https
 import com.cosmos.unreddit.util.PostUtil
+import com.cosmos.unreddit.util.TweetResolver
 import com.cosmos.unreddit.util.extension.updateValue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
@@ -130,7 +131,28 @@ class MediaViewerViewModel
             }
             MediaType.IMGUR_VIDEO, MediaType.VIDEO -> {
                 android.util.Log.d("StealthEx", "retrieveMedia IMGUR_VIDEO/VIDEO: link=$link")
-                setMedia(GalleryMedia.singleton(Type.VIDEO, link))
+                if (link.contains("redgifs.com", ignoreCase = true) && !link.contains("signature=")) {
+                    val id = LinkUtil.getGfycatId(link)
+                    redgifsRepository.getRedgifsGif(id)
+                        .onStart {
+                            _media.value = Resource.Loading()
+                        }
+                        .catch {
+                            setMedia(GalleryMedia.singleton(Type.VIDEO, link))
+                        }
+                        .map {
+                            val videoUrl = it.gif.urls.hd ?: it.gif.urls.sd ?: link
+                            GalleryMedia.singleton(Type.VIDEO, videoUrl)
+                        }
+                        .collect {
+                            setMedia(it)
+                        }
+                } else if (link.contains("v.redd.it")) {
+                    val targetLink = LinkUtil.getRedditVideoMpdUrl(link) ?: link
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, targetLink, null))
+                } else {
+                    setMedia(GalleryMedia.singleton(Type.VIDEO, link))
+                }
             }
             MediaType.REDDIT_VIDEO -> {
                 android.util.Log.d("StealthEx", "retrieveMedia REDDIT_VIDEO: link=$link")
@@ -247,6 +269,16 @@ class MediaViewerViewModel
                     postMapper.dataToEntity(PostUtil.getPostData(listings)).gallery
                 }.collect {
                     setMedia(it)
+                }
+            }
+            MediaType.TWITTER -> {
+                _media.value = Resource.Loading()
+                val resolved = TweetResolver.resolveTweet(link, defaultDispatcher)
+                val gallery = resolved?.toGalleryMedia().orEmpty()
+                if (gallery.isNotEmpty()) {
+                    setMedia(gallery)
+                } else {
+                    _media.value = Resource.Error()
                 }
             }
             else -> {

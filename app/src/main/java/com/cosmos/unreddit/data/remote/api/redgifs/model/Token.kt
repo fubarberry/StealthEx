@@ -9,11 +9,11 @@ data class Token(
     val token: String,
 
     @Json(name = "addr")
-    val addr: String,
+    val addr: String? = null,
 
     @Json(name = "agent")
-    val agent: String,
+    val agent: String? = null,
 
     @Json(name = "rtfm")
-    val rtfm: String
+    val rtfm: String? = null
 )

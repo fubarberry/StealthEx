@@ -91,6 +91,19 @@
             android:layout_marginEnd="@dimen/post_padding_horizontal"
             app:srcCompat="@drawable/save" />
 
+        <ImageButton
+            android:id="@+id/button_hide"
+            android:layout_width="@dimen/post_icon_size"
+            android:layout_height="@dimen/post_icon_size"
+            app:layout_constraintTop_toTopOf="@id/image_vote_icon"
+            app:layout_constraintBottom_toBottomOf="@id/image_vote_icon"
+            app:layout_constraintEnd_toStartOf="@id/button_save"
+            android:layout_marginEnd="@dimen/post_padding_horizontal"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_hide_post"
+            android:visibility="gone"
+            app:srcCompat="@drawable/ic_hide" />
+
         <TextView
             android:id="@+id/text_post_date_compact"
             android:layout_width="wrap_content"
@@ -98,7 +111,7 @@
             app:layout_constraintTop_toTopOf="@id/image_vote_icon"
             app:layout_constraintBottom_toBottomOf="@id/image_vote_icon"
             app:layout_constraintStart_toEndOf="@id/text_post_comments"
-            app:layout_constraintEnd_toStartOf="@id/button_save"
+            app:layout_constraintEnd_toStartOf="@id/button_hide"
             android:textColor="@color/text_color_secondary"
             android:textSize="11sp"
             android:visibility="gone"

@@ -88,16 +88,47 @@
             android:text="@string/subreddit_active_users"
             android:visibility="gone"/>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/subreddit_subscribe_button"
-            android:layout_width="wrap_content"
+        <androidx.constraintlayout.helper.widget.Flow
+            android:id="@+id/subreddit_action_flow"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@id/subreddit_active_users_label"
             android:layout_marginTop="@dimen/subreddit_drawer_margin_vertical"
+            android:layout_marginHorizontal="@dimen/subreddit_drawer_margin_horizontal"
+            app:constraint_referenced_ids="subreddit_subscribe_button,subreddit_pin_button,subreddit_multireddit_button"
+            app:flow_horizontalGap="6dp"
+            app:flow_verticalGap="4dp"
+            app:flow_horizontalStyle="packed"
+            app:flow_wrapMode="chain" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/subreddit_subscribe_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             style="@style/ButtonStyle"
             android:text="@string/subreddit_button_subscribe"
+            android:enabled="false"
+            android:visibility="gone"
+            tools:visibility="visible"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/subreddit_pin_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/ButtonStyle"
+            android:text="@string/subreddit_button_pin"
+            android:enabled="false"
+            android:visibility="gone"
+            tools:visibility="visible"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/subreddit_multireddit_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            style="@style/ButtonStyle"
+            android:text="@string/multireddit_button_short"
             android:enabled="false"
             android:visibility="gone"
             tools:visibility="visible"/>
@@ -107,7 +138,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subreddit_subscribe_button"
+            app:layout_constraintTop_toBottomOf="@id/subreddit_action_flow"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constrainedWidth="true"

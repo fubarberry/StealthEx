@@ -3,6 +3,7 @@ package com.cosmos.unreddit.ui.base
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cosmos.unreddit.data.model.Comment
+import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.data.model.db.Profile
 import com.cosmos.unreddit.data.model.db.Subscription
@@ -24,10 +25,17 @@ open class BaseViewModel(
 
     val leftHandedMode: Flow<Boolean> = preferencesRepository.getLeftHandedMode()
     val useCompactLayout: Flow<Boolean> = preferencesRepository.getUseCompactLayout()
+    val layoutType: Flow<Int> = preferencesRepository.getLayoutType()
 
     fun setUseCompactLayout(useCompactLayout: Boolean) {
         viewModelScope.launch {
             preferencesRepository.setUseCompactLayout(useCompactLayout)
+        }
+    }
+
+    fun setLayoutType(layoutType: Int) {
+        viewModelScope.launch {
+            preferencesRepository.setLayoutType(layoutType)
         }
     }
 
@@ -47,6 +55,14 @@ open class BaseViewModel(
         postListRepository.getSubscriptionsNames(it.id)
     }
 
+    protected val pinnedNames: Flow<List<String>> = currentProfile.flatMapLatest {
+        postListRepository.getPinnedNames(it.id)
+    }
+
+    protected val multireddits: Flow<List<MultiredditWithSubreddits>> = currentProfile.flatMapLatest {
+        postListRepository.getMultireddits(it.id)
+    }
+
     protected val savedPostIds: Flow<List<String>> = currentProfile.flatMapLatest {
         postListRepository.getSavedPostIds(it.id)
     }
@@ -64,9 +80,10 @@ open class BaseViewModel(
     }
 
     fun toggleSavePost(post: PostEntity) {
+        val isSaved = post.saved
         viewModelScope.launch {
             currentProfile.latest?.let {
-                if (post.saved) {
+                if (isSaved) {
                     postListRepository.unsavePost(post, it.id)
                 } else {
                     postListRepository.savePost(post, it.id)
