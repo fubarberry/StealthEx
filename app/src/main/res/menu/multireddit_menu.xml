@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/edit_subreddits"
+        android:title="@string/menu_multireddit_edit_subreddits" />
+
+    <item
+        android:id="@+id/rename"
+        android:title="@string/menu_multireddit_rename" />
+
+    <item
+        android:id="@+id/delete"
+        android:title="@string/menu_multireddit_delete" />
+
+</menu>

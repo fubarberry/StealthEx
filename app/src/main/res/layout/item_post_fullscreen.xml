@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingTop="8dp"
+    android:paddingBottom="12dp">
+
+    <include
+        android:id="@+id/include_post_info"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        layout="@layout/include_post_info" />
+
+    <TextView
+        android:id="@+id/text_post_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="@style/TextAppearancePostTitle"
+        android:maxLines="4"
+        android:ellipsize="end"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/include_post_info"
+        android:layout_marginHorizontal="@dimen/post_title_margin"
+        android:layout_marginTop="4dp"
+        tools:text="This is a post in fullscreen mode" />
+
+    <include
+        android:id="@+id/include_post_flairs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/text_post_title"
+        android:layout_marginTop="4dp"
+        layout="@layout/include_post_flairs" />
+
+    <com.cosmos.unreddit.ui.common.widget.AwardView
+        android:id="@+id/awards"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/include_post_flairs"
+        app:layout_constraintStart_toStartOf="parent"
+        android:layout_marginStart="@dimen/post_margin_top_small"
+        android:layout_marginTop="4dp"
+        android:paddingVertical="@dimen/award_chip_padding_vertical_post"
+        android:paddingHorizontal="@dimen/award_chip_padding_horizontal_post"
+        app:textStyle="@style/TextAppearanceAwardPost" />
+
+    <FrameLayout
+        android:id="@+id/media_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginVertical="8dp"
+        app:layout_constraintTop_toBottomOf="@id/awards"
+        app:layout_constraintBottom_toTopOf="@id/include_post_metrics"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <ImageView
+            android:id="@+id/image_post_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="fitCenter"
+            android:adjustViewBounds="false"
+            android:contentDescription="Post preview image"
+            tools:src="@tools:sample/backgrounds/scenic" />
+
+        <com.google.android.exoplayer2.ui.PlayerView
+            android:id="@+id/video_post_player"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:resize_mode="fit"
+            app:surface_type="texture_view"
+            app:shutter_background_color="@android:color/transparent"
+            app:use_controller="true"
+            app:controller_layout_id="@layout/layout_exoplayer_controls"
+            android:visibility="gone" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/tweet_card_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="16dp"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <com.cosmos.unreddit.ui.common.widget.TweetCardView
+                android:id="@+id/tweet_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+        </androidx.core.widget.NestedScrollView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/text_post_self_card"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="16dp"
+            app:cardCornerRadius="@dimen/post_text_card_radius"
+            app:cardElevation="@dimen/post_elevation"
+            android:visibility="gone">
+
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:fillViewport="true">
+
+                <com.cosmos.unreddit.ui.common.widget.RedditView
+                    android:id="@+id/text_post_self"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="@dimen/post_text_padding" />
+
+            </androidx.core.widget.NestedScrollView>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.cosmos.unreddit.ui.common.widget.CradleView
+            android:id="@+id/loading_cradle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <com.cosmos.unreddit.ui.common.widget.CardButton
+            android:id="@+id/button_type_indicator"
+            android:layout_width="@dimen/app_bar_button_size"
+            android:layout_height="@dimen/app_bar_button_size"
+            android:layout_gravity="bottom|start"
+            android:layout_margin="@dimen/post_type_indicator_margin"
+            android:focusable="false"
+            android:clickable="false"
+            style="@style/CardButtonStyle"
+            tools:icon="@drawable/ic_play" />
+
+        <com.cosmos.unreddit.ui.common.widget.CheckableImageView
+            android:id="@+id/button_mute"
+            android:layout_width="@dimen/media_button_size"
+            android:layout_height="@dimen/media_button_size"
+            android:layout_gravity="top|end"
+            android:layout_margin="16dp"
+            android:padding="6dp"
+            android:background="@drawable/media_controls_background"
+            app:srcCompat="@drawable/ic_mute"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <include
+        android:id="@+id/include_post_metrics"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="4dp"
+        layout="@layout/include_post_metrics" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

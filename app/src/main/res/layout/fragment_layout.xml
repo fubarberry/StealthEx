@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/layout_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/sort_padding">
+
+        <TextView
+            android:id="@+id/text_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:textAppearance="@style/TextAppearanceSortTitle"
+            android:text="@string/layout_title"/>
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/group_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/text_title"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:singleSelection="true"
+            app:selectionRequired="true"
+            android:layout_marginTop="@dimen/sort_margin">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_card"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_layout_large"
+                android:text="@string/layout_card"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_compact"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_layout_compact"
+                android:text="@string/layout_compact"/>
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_fullscreen"
+                style="@style/ChipChoiceStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:chipIcon="@drawable/ic_layout_fullscreen"
+                android:text="@string/layout_fullscreen"/>
+
+        </com.google.android.material.chip.ChipGroup>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
