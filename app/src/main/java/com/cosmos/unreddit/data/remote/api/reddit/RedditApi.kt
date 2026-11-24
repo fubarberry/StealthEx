@@ -91,6 +91,12 @@ interface RedditApi {
     @GET("/user/{user}/about")
     suspend fun getUserInfo(@Path("user") user: String): ResponseBody
 
+    @GET("https://www.reddit.com/user/{user}/about.json?raw_json=1")
+    suspend fun getUserInfoPublic(@Path("user") user: String): ResponseBody
+
+    @GET("https://old.reddit.com/user/{user}/about.json?raw_json=1")
+    suspend fun getUserInfoOldJson(@Path("user") user: String): ResponseBody
+
     @GET("/user/{user}/submitted/")
     suspend fun getUserPosts(
         @Path("user") user: String,

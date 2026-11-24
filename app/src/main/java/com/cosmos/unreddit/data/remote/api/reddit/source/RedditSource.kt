@@ -15,6 +15,7 @@ import com.cosmos.unreddit.data.remote.api.reddit.model.ListingJsonAdapter
 import com.cosmos.unreddit.data.remote.api.reddit.model.MoreChildren
 import com.cosmos.unreddit.data.remote.api.reddit.model.MoreChildrenJsonAdapter
 import com.cosmos.unreddit.data.remote.api.reddit.model.PostChild
+import com.cosmos.unreddit.data.remote.api.reddit.model.Subreddit
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.Over18Scraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.ShredditCommentScraper
 import com.cosmos.unreddit.data.remote.api.reddit.scraper.ShredditSearchScraper
@@ -256,15 +257,23 @@ class RedditSource @Inject constructor(
         }
 
     override suspend fun getUserInfo(user: String): Child = withContext(ioDispatcher) {
-        try {
-            val response = redditApi.getUserInfo(user)
-            val parsed = aboutUserChildAdapter.fromJson(response.source()) ?: throw IOException()
-            if (!parsed.data.isSuspended) {
-                return@withContext parsed
+        val jsonAttempts: List<suspend () -> String> = listOf(
+            { redditApi.getUserInfo(user).string() },
+            { shredditApi.getUserInfoPublic(user).string() },
+            { shredditApi.getUserInfoOldJson(user).string() }
+        )
+
+        for (attempt in jsonAttempts) {
+            try {
+                val rawJson = attempt()
+                val parsed = parseAboutUserJson(rawJson)
+                if (parsed != null && !parsed.data.isSuspended) {
+                    return@withContext parsed
+                }
+            } catch (e: retrofit2.HttpException) {
+                if (e.code() == 404) throw e
+            } catch (_: Exception) {
             }
-        } catch (e: retrofit2.HttpException) {
-            if (e.code() == 404) throw e
-        } catch (_: Exception) {
         }
 
         try {
@@ -301,6 +310,61 @@ class RedditSource @Inject constructor(
                 commentKarma = 0
             )
         )
+    }
+
+    private fun parseAboutUserJson(rawJson: String): AboutUserChild? {
+        runCatching {
+            aboutUserChildAdapter.fromJson(rawJson)
+        }.getOrNull()?.let { return it }
+
+        return runCatching {
+            val root = org.json.JSONObject(rawJson)
+            val data = root.optJSONObject("data") ?: return null
+            val name = data.optString("name", "")
+            if (name.isBlank() && !data.optBoolean("is_suspended", false)) return null
+
+            val subObj = data.optJSONObject("subreddit")
+            val subreddit = subObj?.let { s ->
+                Subreddit(
+                    bannerImg = s.optString("banner_img").takeIf { it.isNotBlank() && it != "null" },
+                    communityIcon = s.optString("community_icon").takeIf { it.isNotBlank() && it != "null" },
+                    iconColor = s.optString("icon_color", ""),
+                    headerImg = s.optString("header_img").takeIf { it.isNotBlank() && it != "null" },
+                    title = s.optString("title", ""),
+                    over18 = s.optBoolean("over_18", false),
+                    primaryColor = s.optString("primary_color", ""),
+                    iconImg = s.optString("icon_img", ""),
+                    description = s.optString("description", ""),
+                    subscribers = s.optInt("subscribers", 0),
+                    displayNamePrefixed = s.optString("display_name_prefixed", ""),
+                    keyColor = s.optString("key_color", ""),
+                    name = s.optString("name", ""),
+                    isDefaultBanner = s.optBoolean("is_default_banner", true),
+                    url = s.optString("url", ""),
+                    publicDescription = s.optString("public_description", "")
+                )
+            }
+
+            val createdSec = data.optDouble("created_utc", 0.0).let {
+                if (it.isNaN() || it <= 0.0) 0L else it.toLong()
+            }
+
+            AboutUserChild(
+                AboutUserData(
+                    isSuspended = data.optBoolean("is_suspended", false),
+                    isEmployee = data.optBoolean("is_employee", false),
+                    subreddit = subreddit,
+                    id = data.optString("id").takeIf { it.isNotBlank() && it != "null" },
+                    iconImg = data.optString("icon_img").takeIf { it.isNotBlank() && it != "null" },
+                    linkKarma = data.optInt("link_karma", 0),
+                    totalKarma = data.optInt("total_karma", 0),
+                    name = name,
+                    created = createdSec,
+                    snoovatarImg = data.optString("snoovatar_img").takeIf { it.isNotBlank() && it != "null" },
+                    commentKarma = data.optInt("comment_karma", 0)
+                )
+            )
+        }.getOrNull()
     }
 
     override suspend fun getUserPosts(

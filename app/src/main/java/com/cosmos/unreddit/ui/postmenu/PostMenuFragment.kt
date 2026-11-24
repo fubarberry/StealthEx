@@ -55,6 +55,7 @@ class PostMenuFragment : BottomSheetDialogFragment() {
         val post = arguments?.parcelable<PostEntity>(BUNDLE_KEY_POST)
         post?.let {
             binding.post = it
+            binding.executePendingBindings()
             initActions(it)
         }
     }
@@ -68,9 +69,21 @@ class PostMenuFragment : BottomSheetDialogFragment() {
             }
 
             buttonSubreddit.setOnClickListener {
-                val subreddit = post.subreddit.removePrefix("r/")
-                doAndDismiss {
-                    findNavController().navigate(NavigationGraphDirections.openSubreddit(subreddit))
+                val raw = post.subreddit.trim().removePrefix("/")
+                if (raw.startsWith("u/", ignoreCase = true) || raw.startsWith("u_")) {
+                    val user = raw
+                        .let { if (it.startsWith("u/", ignoreCase = true)) it.substring(2) else it.removePrefix("u_") }
+                        .trim('/')
+                    doAndDismiss {
+                        findNavController().navigate(NavigationGraphDirections.openUser(user))
+                    }
+                } else {
+                    val subreddit = raw
+                        .let { if (it.startsWith("r/", ignoreCase = true)) it.substring(2) else it }
+                        .trim('/')
+                    doAndDismiss {
+                        findNavController().navigate(NavigationGraphDirections.openSubreddit(subreddit))
+                    }
                 }
             }
 

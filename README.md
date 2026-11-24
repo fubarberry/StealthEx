@@ -33,13 +33,16 @@ It provides features from Reddit, without the need for an account. In fact, the 
 - Allow pinning of subreddits to the subscription list
 - Swipe to save/hide posts
 
-## AI Disclaimer
+## Disclaimer
 
 AI was used in the creation of this fork.
+
+Reddit is hostile toward 3rd party apps, so this app will likely break frequently and need updates to restore functionality.
 
 ## License
 
 Copyright 2021 CosmosDev
+
 Copyright 2026 Fubarberry (Stealth.Ex modifications)
 
 Licensed under the GPLv3: http://www.gnu.org/licenses/gpl-3.0.html

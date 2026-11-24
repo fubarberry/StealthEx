@@ -21,7 +21,7 @@ data class Subreddit(
     val title: String? = "",
 
     @Json(name = "over_18")
-    val over18: Boolean = false,
+    val over18: Boolean? = false,
 
     @Json(name = "primary_color")
     val primaryColor: String? = "",
@@ -33,7 +33,7 @@ data class Subreddit(
     val description: String? = "",
 
     @Json(name = "subscribers")
-    val subscribers: Int = 0,
+    val subscribers: Int? = 0,
 
     @Json(name = "display_name_prefixed")
     val displayNamePrefixed: String? = "",
@@ -45,7 +45,7 @@ data class Subreddit(
     val name: String? = "",
 
     @Json(name = "is_default_banner")
-    val isDefaultBanner: Boolean = true,
+    val isDefaultBanner: Boolean? = true,
 
     @Json(name = "url")
     val url: String? = "",

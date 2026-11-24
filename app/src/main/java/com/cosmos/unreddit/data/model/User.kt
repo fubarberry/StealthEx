@@ -33,6 +33,6 @@ data class User(
     }
 
     fun getCakeDay(): String {
-        return DateUtil.getFormattedDate(created)
+        return if (created > 0L) DateUtil.getFormattedDate(created) else "-"
     }
 }
