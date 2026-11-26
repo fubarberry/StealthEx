@@ -2,6 +2,7 @@ package com.cosmos.unreddit.ui.subscriptions
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -16,7 +17,8 @@ import com.cosmos.unreddit.databinding.ItemSubscriptionBinding
 class SubscriptionsAdapter(
     private val listener: (String) -> Unit,
     private val onPinClick: (Subscription) -> Unit,
-    private val onSubscribeClick: (Subscription) -> Unit
+    private val onSubscribeClick: (Subscription) -> Unit,
+    private val onFeedMixClick: () -> Unit = {}
 ) : ListAdapter<SubscriptionListItem, RecyclerView.ViewHolder>(
     SUBSCRIPTION_COMPARATOR
 ) {
@@ -49,7 +51,17 @@ class SubscriptionsAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(section: SubscriptionListItem.Section) {
-            binding.title.text = binding.root.context.getString(section.titleRes)
+            val context = binding.root.context
+            binding.title.text = context.getString(section.titleRes)
+            binding.buttonAction.apply {
+                isVisible = section.showFeedMixAction
+                if (section.showFeedMixAction) {
+                    setText(R.string.subscriptions_feed_mix_button)
+                    setOnClickListener { onFeedMixClick() }
+                } else {
+                    setOnClickListener(null)
+                }
+            }
         }
     }
 

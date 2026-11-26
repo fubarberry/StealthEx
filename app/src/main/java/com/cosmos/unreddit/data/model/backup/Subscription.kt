@@ -18,5 +18,8 @@ data class Subscription(
     val isSubscribed: Boolean = true,
 
     @Json(name = "is_pinned")
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+
+    @Json(name = "home_weight")
+    val homeWeight: Int = 100
 )

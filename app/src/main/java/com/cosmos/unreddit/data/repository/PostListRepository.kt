@@ -97,7 +97,8 @@ class PostListRepository @Inject constructor(
     fun getPosts(
         subreddit: List<String>,
         sorting: Sorting,
-        pageSize: Int = DEFAULT_LIMIT
+        pageSize: Int = DEFAULT_LIMIT,
+        subredditWeights: Map<String, Int> = emptyMap()
     ): Flow<PagingData<Child>> {
         return Pager(PagingConfig(pageSize = pageSize)) {
             SmartPostListDataSource(
@@ -105,7 +106,8 @@ class PostListRepository @Inject constructor(
                 subreddit,
                 sorting,
                 defaultDispatcher,
-                mainImmediateDispatcher
+                mainImmediateDispatcher,
+                subredditWeights
             )
         }.flow
     }
@@ -168,6 +170,17 @@ class PostListRepository @Inject constructor(
         redditDatabase.multiredditDao().replaceSubreddits(multiredditId, subreddits)
     }
 
+    suspend fun updateMultiredditSubredditWeights(multiredditId: Int, weights: Map<String, Int>) {
+        val dao = redditDatabase.multiredditDao()
+        weights.forEach { (subreddit, weight) ->
+            val clamped = weight.coerceIn(
+                Subscription.MIN_HOME_WEIGHT,
+                Subscription.MAX_HOME_WEIGHT
+            )
+            dao.updateSubredditWeight(multiredditId, subreddit, clamped)
+        }
+    }
+
     //endregion
 
     //region Subscriptions
@@ -181,6 +194,21 @@ class PostListRepository @Inject constructor(
 
     fun getPinnedNames(profileId: Int): Flow<List<String>> {
         return redditDatabase.subscriptionDao().getPinnedNamesFromProfile(profileId)
+    }
+
+    suspend fun updateSubscriptionHomeWeights(profileId: Int, weights: Map<String, Int>) {
+        val dao = redditDatabase.subscriptionDao()
+        weights.forEach { (name, weight) ->
+            val clamped = weight.coerceIn(
+                Subscription.MIN_HOME_WEIGHT,
+                Subscription.MAX_HOME_WEIGHT
+            )
+            dao.updateHomeWeight(name, profileId, clamped)
+        }
+    }
+
+    suspend fun resetSubscriptionHomeWeights(profileId: Int) {
+        redditDatabase.subscriptionDao().resetHomeWeights(profileId)
     }
 
     suspend fun subscribe(name: String, profileId: Int, icon: String? = null) {

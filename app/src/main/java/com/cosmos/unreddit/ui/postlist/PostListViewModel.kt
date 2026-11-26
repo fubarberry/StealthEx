@@ -61,35 +61,54 @@ class PostListViewModel
         }
     }
 
-    val subreddit: Flow<List<String>> = combine(
-        subscriptionsNames.distinctUntilChanged(),
+    private val subscribedWithWeights: Flow<Pair<List<String>, Map<String, Int>>> = combine(
+        subscriptions.map { list ->
+            list.filter { it.isSubscribed }
+                .sortedBy { it.name.lowercase() }
+                .map { it.name to it.homeWeight }
+        }.distinctUntilChanged(),
         homeFeedType
-    ) { subscriptions, feedType ->
+    ) { subsWithWeights, feedType ->
         when (feedType) {
-            1 -> listOf(DEFAULT_SUBREDDIT)
-            2 -> listOf("all")
+            1 -> listOf(DEFAULT_SUBREDDIT) to emptyMap()
+            2 -> listOf("all") to emptyMap()
             else -> {
-                if (subscriptions.isEmpty()) {
-                    listOf(DEFAULT_SUBREDDIT)
+                if (subsWithWeights.isEmpty()) {
+                    listOf(DEFAULT_SUBREDDIT) to emptyMap()
                 } else {
-                    subscriptions.shuffled()
+                    val weightsMap = subsWithWeights.toMap()
+                    val activeNames = subsWithWeights
+                        .filter { it.second > 0 }
+                        .map { it.first }
+                        .shuffled()
+                    if (activeNames.isEmpty()) {
+                        listOf(DEFAULT_SUBREDDIT) to emptyMap()
+                    } else {
+                        activeNames to weightsMap
+                    }
                 }
             }
         }
     }.flowOn(defaultDispatcher)
 
+    val subreddit: Flow<List<String>> = subscribedWithWeights.map { it.first }
+
     val postDataFlow: Flow<PagingData<PostEntity>>
 
-    val fetchData: StateFlow<Data.FetchMultiple> = combine(
-        subreddit,
+    private val weightedFetchData: Flow<Pair<Data.FetchMultiple, Map<String, Int>>> = combine(
+        subscribedWithWeights,
         sorting
-    ) { subreddit, sorting ->
-        Data.FetchMultiple(subreddit, sorting)
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
-        Data.FetchMultiple(listOf(DEFAULT_SUBREDDIT), DEFAULT_SORTING)
-    )
+    ) { (subreddits, weights), sorting ->
+        Data.FetchMultiple(subreddits, sorting) to weights
+    }
+
+    val fetchData: StateFlow<Data.FetchMultiple> = weightedFetchData
+        .map { it.first }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            Data.FetchMultiple(listOf(DEFAULT_SUBREDDIT), DEFAULT_SORTING)
+        )
 
     private var latestUser: Data.User? = null
 
@@ -109,10 +128,10 @@ class PostListViewModel
     var isDrawerOpen: Boolean = false
 
     init {
-        val rawPostDataFlow = fetchData
+        val rawPostDataFlow = weightedFetchData
             // Fetch last user data when search data is updated and merge them together
-            .flatMapLatest { fetchData -> userData.map { fetchData to it } }
-            .flatMapLatest { getPosts(it.first, it.second) }
+            .flatMapLatest { (fetch, weights) -> userData.map { Triple(fetch, weights, it) } }
+            .flatMapLatest { (fetch, weights, user) -> getPosts(fetch, weights, user) }
             .onEach { _lastRefresh.value = System.currentTimeMillis() }
             .cachedIn(viewModelScope)
 
@@ -121,8 +140,12 @@ class PostListViewModel
         }
     }
 
-    private fun getPosts(data: Data.FetchMultiple, user: Data.User): Flow<PagingData<PostEntity>> {
-        return repository.getPosts(data.query, data.sorting)
+    private fun getPosts(
+        data: Data.FetchMultiple,
+        weights: Map<String, Int>,
+        user: Data.User
+    ): Flow<PagingData<PostEntity>> {
+        return repository.getPosts(data.query, data.sorting, subredditWeights = weights)
             .map { pagingData ->
                 PostUtil.filterPosts(pagingData, latestUser ?: user, postMapper, defaultDispatcher)
             }

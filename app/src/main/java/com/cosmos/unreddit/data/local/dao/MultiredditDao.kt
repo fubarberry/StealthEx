@@ -8,6 +8,7 @@ import androidx.room.Transaction
 import com.cosmos.unreddit.data.model.db.Multireddit
 import com.cosmos.unreddit.data.model.db.MultiredditSubreddit
 import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
+import com.cosmos.unreddit.data.model.db.Subscription
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -43,17 +44,41 @@ abstract class MultiredditDao {
     @Query("DELETE FROM multireddit_subreddit WHERE multireddit_id = :multiredditId AND subreddit = :subreddit COLLATE NOCASE")
     abstract suspend fun removeSubreddit(multiredditId: Int, subreddit: String)
 
+    @Query("SELECT * FROM multireddit_subreddit WHERE multireddit_id = :multiredditId")
+    abstract suspend fun getSubredditEntries(multiredditId: Int): List<MultiredditSubreddit>
+
+    @Query("UPDATE multireddit_subreddit SET weight = :weight WHERE multireddit_id = :multiredditId AND subreddit = :subreddit COLLATE NOCASE")
+    abstract suspend fun updateSubredditWeight(multiredditId: Int, subreddit: String, weight: Int)
+
     @Query("DELETE FROM multireddit_subreddit WHERE multireddit_id = :multiredditId")
     abstract suspend fun clearSubreddits(multiredditId: Int)
 
     @Transaction
-    open suspend fun replaceSubreddits(multiredditId: Int, subreddits: List<String>) {
+    open suspend fun replaceSubreddits(
+        multiredditId: Int,
+        subreddits: List<String>,
+        explicitWeights: Map<String, Int> = emptyMap()
+    ) {
+        val existingWeights = getSubredditEntries(multiredditId)
+            .associate { it.subreddit.lowercase() to it.weight }
+        val normalizedExplicit = explicitWeights.entries
+            .associate { it.key.trim().lowercase() to it.value }
         clearSubreddits(multiredditId)
         val distinctEntries = subreddits
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinctBy { it.lowercase() }
-            .map { MultiredditSubreddit(multiredditId, it) }
+            .map { name ->
+                val lower = name.lowercase()
+                val rawWeight = normalizedExplicit[lower]
+                    ?: existingWeights[lower]
+                    ?: Subscription.DEFAULT_HOME_WEIGHT
+                val weight = rawWeight.coerceIn(
+                    Subscription.MIN_HOME_WEIGHT,
+                    Subscription.MAX_HOME_WEIGHT
+                )
+                MultiredditSubreddit(multiredditId, name, weight)
+            }
         if (distinctEntries.isNotEmpty()) {
             addSubreddits(distinctEntries)
         }

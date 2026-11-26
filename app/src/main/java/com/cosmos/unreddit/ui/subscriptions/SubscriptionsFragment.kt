@@ -18,9 +18,11 @@ import com.cosmos.unreddit.NavigationGraphDirections
 import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
 import com.cosmos.unreddit.data.model.db.Subscription
+import com.cosmos.unreddit.databinding.DialogFeedMixBinding
 import com.cosmos.unreddit.databinding.DialogGoToSubredditBinding
 import com.cosmos.unreddit.databinding.DialogMultiredditNameBinding
 import com.cosmos.unreddit.databinding.FragmentSubscriptionsBinding
+import com.cosmos.unreddit.databinding.ItemFeedMixBinding
 import com.cosmos.unreddit.ui.base.BaseFragment
 import com.cosmos.unreddit.util.SearchUtil
 import com.cosmos.unreddit.util.extension.applyWindowInsets
@@ -43,6 +45,7 @@ class SubscriptionsFragment : BaseFragment() {
     private lateinit var multiredditsAdapter: MultiredditsAdapter
 
     private var latestSubscriptions: List<SubscriptionListItem> = emptyList()
+    private var latestSubscribedCommunities: List<Subscription> = emptyList()
     private var latestMultireddits: List<MultiredditWithSubreddits> = emptyList()
 
     override fun onCreateView(
@@ -101,6 +104,14 @@ class SubscriptionsFragment : BaseFragment() {
                         latestSubscriptions = subscriptions
                         subscriptionsAdapter.submitList(subscriptions)
                         updateEmptyState()
+                    }
+            }
+
+            launch {
+                viewModel.subscribedCommunities
+                    .flowWithLifecycle(viewLifecycleOwner.lifecycle, Lifecycle.State.STARTED)
+                    .collect { subscribed ->
+                        latestSubscribedCommunities = subscribed
                     }
             }
 
@@ -165,7 +176,8 @@ class SubscriptionsFragment : BaseFragment() {
         subscriptionsAdapter = SubscriptionsAdapter(
             listener = { onClick(it) },
             onPinClick = { viewModel.togglePin(it) },
-            onSubscribeClick = { onSubscribeToggle(it) }
+            onSubscribeClick = { onSubscribeToggle(it) },
+            onFeedMixClick = { showFeedMixDialog() }
         )
         multiredditsAdapter = MultiredditsAdapter { multireddit ->
             onMultiredditClick(multireddit)
@@ -193,6 +205,85 @@ class SubscriptionsFragment : BaseFragment() {
                 .show()
         } else {
             viewModel.subscribe(subscription)
+        }
+    }
+
+    private fun showFeedMixDialog() {
+        val communities = latestSubscribedCommunities
+        if (communities.isEmpty()) return
+
+        val workingWeights = LinkedHashMap<String, Int>(communities.size).apply {
+            communities.forEach { sub ->
+                val snapped = ((sub.homeWeight + 12) / 25) * 25
+                put(sub.name, snapped.coerceIn(Subscription.MIN_HOME_WEIGHT, Subscription.MAX_HOME_WEIGHT))
+            }
+        }
+
+        val dialogBinding = DialogFeedMixBinding.inflate(requireActivity().layoutInflater)
+        val mixAdapter = object : androidx.recyclerview.widget.RecyclerView.Adapter<FeedMixViewHolder>() {
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FeedMixViewHolder {
+                return FeedMixViewHolder(
+                    ItemFeedMixBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+                )
+            }
+
+            override fun onBindViewHolder(holder: FeedMixViewHolder, position: Int) {
+                val sub = communities[position]
+                val currentWeight = workingWeights[sub.name] ?: Subscription.DEFAULT_HOME_WEIGHT
+                holder.bind(sub.name, currentWeight) { newWeight ->
+                    workingWeights[sub.name] = newWeight
+                }
+            }
+
+            override fun getItemCount(): Int = communities.size
+        }
+
+        dialogBinding.listFeedMix.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = mixAdapter
+        }
+
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.dialog_feed_mix_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.dialog_multireddit_save_button) { _, _ ->
+                viewModel.saveHomeFeedWeights(workingWeights)
+            }
+            .setNeutralButton(R.string.dialog_feed_mix_reset, null)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
+
+        dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener {
+            communities.forEach { sub ->
+                workingWeights[sub.name] = Subscription.DEFAULT_HOME_WEIGHT
+            }
+            mixAdapter.notifyDataSetChanged()
+        }
+    }
+
+    private class FeedMixViewHolder(
+        private val binding: ItemFeedMixBinding
+    ) : androidx.recyclerview.widget.RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(subredditName: String, weight: Int, onWeightChanged: (Int) -> Unit) {
+            binding.textSubreddit.text = "r/$subredditName"
+            binding.textWeight.text = formatWeight(weight)
+            binding.sliderWeight.clearOnChangeListeners()
+            binding.sliderWeight.value = weight.toFloat()
+            binding.sliderWeight.addOnChangeListener { _, value, _ ->
+                val intWeight = value.toInt()
+                binding.textWeight.text = formatWeight(intWeight)
+                onWeightChanged(intWeight)
+            }
+        }
+
+        private fun formatWeight(weight: Int): String {
+            val context = binding.root.context
+            return if (weight <= 0) {
+                context.getString(R.string.feed_mix_off)
+            } else {
+                context.getString(R.string.feed_mix_percent, weight)
+            }
         }
     }
 

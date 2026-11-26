@@ -99,6 +99,11 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     private val isDrawerOpen: Boolean
         get() = binding.drawerLayout.isDrawerOpen(GravityCompat.START)
 
+    private val isPostDetailsOpen: Boolean
+        get() = parentFragmentManager.fragments.any {
+            it is com.cosmos.unreddit.ui.postdetails.PostDetailsFragment && it.isVisible
+        }
+
     private lateinit var postListAdapter: PostListAdapter
 
     private lateinit var profileAdapter: ProfileAdapter
@@ -132,6 +137,15 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
     override fun onStart() {
         super.onStart()
         initResultListener()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (_binding?.listPost?.isFullscreenMode == true && !isPostDetailsOpen) {
+            uiViewModel.setNavigationAutoHide(false)
+            onOffsetChangedListener.visible = true
+            uiViewModel.setNavigationVisibility(true)
+        }
     }
 
     override fun applyInsets(view: View) {
@@ -210,7 +224,7 @@ class PostListFragment : BaseFragment(), PullToRefreshLayout.OnRefreshListener {
                     binding.pullRefresh.isNestedScrollingEnabled = !isFullscreen
                     updatePostListBottomPadding()
                     uiViewModel.setNavigationAutoHide(!isFullscreen)
-                    if (isFullscreen) {
+                    if (isFullscreen && !isPostDetailsOpen) {
                         onOffsetChangedListener.visible = true
                         uiViewModel.setNavigationVisibility(true)
                     }

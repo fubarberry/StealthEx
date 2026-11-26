@@ -14,6 +14,9 @@ data class MultiredditWithSubreddits(
     val subredditNames: List<String>
         get() = subreddits.map { it.subreddit }.sortedBy { it.lowercase() }
 
+    val subredditWeights: Map<String, Int>
+        get() = subreddits.associate { it.subreddit to it.weight }
+
     fun containsSubreddit(subreddit: String): Boolean {
         return subreddits.any { it.subreddit.equals(subreddit, ignoreCase = true) }
     }

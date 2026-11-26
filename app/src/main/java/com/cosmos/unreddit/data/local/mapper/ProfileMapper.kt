@@ -29,7 +29,8 @@ class ProfileMapper @Inject constructor(
                     Multireddit(
                         name = item.multireddit.name,
                         time = item.multireddit.time,
-                        subreddits = item.subredditNames
+                        subreddits = item.subredditNames,
+                        subredditWeights = item.subredditWeights
                     )
                 }
             )

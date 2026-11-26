@@ -25,4 +25,10 @@ abstract class SubscriptionDao : BaseDao<Subscription> {
 
     @Query("SELECT name FROM subscription WHERE profile_id = :profileId AND is_pinned = 1")
     abstract fun getPinnedNamesFromProfile(profileId: Int): Flow<List<String>>
+
+    @Query("UPDATE subscription SET home_weight = :homeWeight WHERE name = :name AND profile_id = :profileId")
+    abstract suspend fun updateHomeWeight(name: String, profileId: Int, homeWeight: Int)
+
+    @Query("UPDATE subscription SET home_weight = 100 WHERE profile_id = :profileId")
+    abstract suspend fun resetHomeWeights(profileId: Int)
 }

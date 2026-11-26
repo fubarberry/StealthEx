@@ -25,6 +25,8 @@ object DatabaseModule {
             .addMigrations(RedditDatabase.MIGRATION_4_5)
             .addMigrations(RedditDatabase.MIGRATION_5_6)
             .addMigrations(RedditDatabase.MIGRATION_6_7)
+            .addMigrations(RedditDatabase.MIGRATION_7_8)
+            .addMigrations(RedditDatabase.MIGRATION_8_9)
             .build()
     }
 }

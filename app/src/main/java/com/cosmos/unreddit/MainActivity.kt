@@ -29,7 +29,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -56,16 +55,16 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
 
         launchRepeat(Lifecycle.State.STARTED) {
             launch {
-                viewModel.navigationVisibility
-                    // Drop the first item to let initBottomNavigationView manage the visibility
-                    .drop(1)
-                    .collect(this@MainActivity::showNavigation)
+                viewModel.navigationVisibility.collect { show ->
+                    if (bottomNavigationState != NOT_INITIALIZED) {
+                        showNavigation(show)
+                    }
+                }
             }
 
             launch {
-                viewModel.navigationAutoHide
-                    .drop(1)
-                    .collect { autoHide ->
+                viewModel.navigationAutoHide.collect { autoHide ->
+                    if (bottomNavigationState != NOT_INITIALIZED) {
                         val layoutParams = binding.bottomNavigation.layoutParams
                             as? CoordinatorLayout.LayoutParams
                         val behavior = layoutParams?.behavior as? HideBottomViewBehavior
@@ -80,6 +79,7 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
                             behavior?.enabled = false
                         }
                     }
+                }
             }
 
             launch {

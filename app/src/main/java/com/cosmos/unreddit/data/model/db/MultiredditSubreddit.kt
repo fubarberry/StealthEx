@@ -21,5 +21,8 @@ data class MultiredditSubreddit(
     val multiredditId: Int,
 
     @ColumnInfo(name = "subreddit", collate = ColumnInfo.NOCASE)
-    val subreddit: String
+    val subreddit: String,
+
+    @ColumnInfo(name = "weight", defaultValue = "100")
+    val weight: Int = Subscription.DEFAULT_HOME_WEIGHT
 )

@@ -302,6 +302,7 @@
     <string name="share_option_file">Share file (directly)</string>
     <string name="share_option_link">Share link</string>
     <string name="share_error_failed">Failed to share media</string>
+    <string name="menu_download_media">Download</string>
 
     <string name="feed_subscribed">Subscribed</string>
     <string name="feed_popular">Popular</string>
@@ -334,6 +335,15 @@
     <string name="multireddit_subreddit_count_one">1 subreddit</string>
     <string name="multireddit_subreddit_count_other">%d subreddits</string>
     <string name="multireddit_no_subreddits">No subreddits</string>
+
+    <string name="subscriptions_feed_mix_button">Feed mix</string>
+    <string name="dialog_feed_mix_title">Home Feed Mix</string>
+    <string name="dialog_feed_mix_subtitle">Adjust how much content from each subscribed community appears in your Home feed.</string>
+    <string name="dialog_multireddit_feed_mix_title">Feed Mix</string>
+    <string name="dialog_multireddit_feed_mix_subtitle">Adjust how much content from each community appears in this multireddit.</string>
+    <string name="dialog_feed_mix_reset">Reset</string>
+    <string name="feed_mix_off">Off</string>
+    <string name="feed_mix_percent">%d%%</string>
 
     <string name="layout_card">Card</string>
     <string name="layout_compact">Compact</string>

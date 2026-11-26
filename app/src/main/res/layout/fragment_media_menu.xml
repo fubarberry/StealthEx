@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+        <variable
+            name="post"
+            type="com.cosmos.unreddit.data.model.db.PostEntity" />
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="@dimen/dialog_menu_padding">
+
+        <TextView
+            android:id="@+id/text_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:ellipsize="none"
+            android:singleLine="true"
+            android:requiresFadingEdge="horizontal"
+            android:textAppearance="@style/TextAppearanceMenu"
+            android:text="@{post.title}"
+            tools:text="This is a title"/>
+
+        <LinearLayout
+            android:id="@+id/flow_action"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/text_title"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginTop="@dimen/dialog_menu_margin"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/button_download"
+                android:layout_width="@dimen/dialog_menu_button_size"
+                android:layout_height="wrap_content"
+                style="@style/ChipActionStyle"
+                app:chipIcon="@drawable/ic_download"
+                android:text="@string/menu_download_media" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/button_share_file"
+                android:layout_width="@dimen/dialog_menu_button_size"
+                android:layout_height="wrap_content"
+                style="@style/ChipActionStyle"
+                app:chipIcon="@drawable/ic_share"
+                android:text="@string/share_option_file" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/button_share_link"
+                android:layout_width="@dimen/dialog_menu_button_size"
+                android:layout_height="wrap_content"
+                style="@style/ChipActionStyle"
+                app:chipIcon="@drawable/ic_link"
+                android:text="@string/share_option_link" />
+
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/loading_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/flow_action"
+            app:layout_constraintBottom_toBottomOf="@id/flow_action"
+            android:visibility="gone" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>

@@ -172,6 +172,10 @@ abstract class PostViewHolder(
             binding.imagePostPreview.setOnClickListener {
                 listener.onMediaClick(bindingAdapterPosition)
             }
+            binding.imagePostPreview.setOnLongClickListener {
+                listener.onMediaLongClick(bindingAdapterPosition)
+                true
+            }
         }
 
         override fun bind(
@@ -217,6 +221,10 @@ abstract class PostViewHolder(
         init {
             binding.imagePostPreview.setOnClickListener {
                 listener.onMediaClick(bindingAdapterPosition)
+            }
+            binding.imagePostPreview.setOnLongClickListener {
+                listener.onMediaLongClick(bindingAdapterPosition)
+                true
             }
         }
 
@@ -370,6 +378,10 @@ abstract class PostViewHolder(
             binding.imagePostPreview.setOnClickListener {
                 listener.onMediaClick(bindingAdapterPosition)
             }
+            binding.imagePostPreview.setOnLongClickListener {
+                listener.onMediaLongClick(bindingAdapterPosition)
+                true
+            }
         }
 
         fun bind(
@@ -425,6 +437,10 @@ abstract class PostViewHolder(
         init {
             binding.imagePostPreview.setOnClickListener {
                 listener.onMediaClick(bindingAdapterPosition)
+            }
+            binding.imagePostPreview.setOnLongClickListener {
+                listener.onMediaLongClick(bindingAdapterPosition)
+                true
             }
         }
 
@@ -580,6 +596,43 @@ abstract class PostViewHolder(
                     listener.onClick(bindingAdapterPosition)
                 } else {
                     listener.onMediaClick(bindingAdapterPosition)
+                }
+            }
+            binding.imagePostPreview.setOnLongClickListener {
+                val type = boundPost?.type
+                if (type == PostType.IMAGE || type == PostType.VIDEO) {
+                    listener.onMediaLongClick(bindingAdapterPosition)
+                } else {
+                    listener.onClick(bindingAdapterPosition, true)
+                }
+                true
+            }
+            var handledVideoLongPress = false
+            val videoLongPressDetector = android.view.GestureDetector(
+                binding.videoPostPlayer.context,
+                object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onLongPress(e: android.view.MotionEvent) {
+                        handledVideoLongPress = true
+                        binding.videoPostPlayer.performHapticFeedback(
+                            android.view.HapticFeedbackConstants.LONG_PRESS
+                        )
+                        listener.onMediaLongClick(bindingAdapterPosition)
+                    }
+                }
+            )
+            binding.videoPostPlayer.setOnTouchListener { _, event ->
+                if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                    handledVideoLongPress = false
+                }
+                videoLongPressDetector.onTouchEvent(event)
+                if (handledVideoLongPress &&
+                    (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+                        event.actionMasked == android.view.MotionEvent.ACTION_CANCEL)
+                ) {
+                    handledVideoLongPress = false
+                    true
+                } else {
+                    false
                 }
             }
             binding.videoPostPlayer.findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_progress)

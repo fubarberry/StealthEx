@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:id="@+id/text_subtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:text="@string/dialog_feed_mix_subtitle"
+        android:textAppearance="?attr/textAppearanceBody2" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list_feed_mix"
+        android:layout_width="match_parent"
+        android:layout_height="340dp"
+        android:overScrollMode="never" />
+
+</LinearLayout>

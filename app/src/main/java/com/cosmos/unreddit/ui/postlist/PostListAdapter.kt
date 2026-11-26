@@ -58,12 +58,16 @@ class PostListAdapter(
         fun onSaveClick(post: PostEntity)
 
         fun onHideClick(post: PostEntity) {}
+
+        fun onMediaLongClick(post: PostEntity) {}
     }
 
     interface Listener {
         fun onClick(position: Int, isLong: Boolean = false)
 
         fun onMediaClick(position: Int)
+
+        fun onMediaLongClick(position: Int) {}
 
         fun onFullscreenVideoClick(position: Int) {}
 
@@ -326,6 +330,14 @@ class PostListAdapter(
             getItem(position)?.let {
                 setPostSeen(position, it)
                 postClickListener.onVideoClick(it)
+            }
+        }
+
+        override fun onMediaLongClick(position: Int) {
+            getItem(position)?.let { post ->
+                if (post.type == PostType.IMAGE || post.type == PostType.VIDEO) {
+                    postClickListener.onMediaLongClick(post)
+                }
             }
         }
 

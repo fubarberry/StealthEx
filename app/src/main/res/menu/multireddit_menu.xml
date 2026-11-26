@@ -2,6 +2,10 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
+        android:id="@+id/feed_mix"
+        android:title="@string/subscriptions_feed_mix_button" />
+
+    <item
         android:id="@+id/edit_subreddits"
         android:title="@string/menu_multireddit_edit_subreddits" />
 

@@ -23,7 +23,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed class SubscriptionListItem {
-    data class Section(@StringRes val titleRes: Int) : SubscriptionListItem()
+    data class Section(
+        @StringRes val titleRes: Int,
+        val showFeedMixAction: Boolean = false
+    ) : SubscriptionListItem()
     data class SubredditItem(val subscription: Subscription) : SubscriptionListItem()
 }
 
@@ -44,6 +47,12 @@ class SubscriptionsViewModel @Inject constructor(
 
     private val _searchQuery: MutableStateFlow<String> = MutableStateFlow("")
 
+    val subscribedCommunities: Flow<List<Subscription>> = subscriptions
+        .combine(_searchQuery) { list, _ ->
+            list.filter { it.isSubscribed }.sortedBy { it.name.lowercase() }
+        }
+        .flowOn(defaultDispatcher)
+
     val filteredSubscriptions: Flow<List<SubscriptionListItem>> = combine(
         subscriptions,
         _searchQuery
@@ -53,16 +62,20 @@ class SubscriptionsViewModel @Inject constructor(
         }
         val pinned = matching.filter { it.isPinned }
         val subscribed = matching.filter { !it.isPinned && it.isSubscribed }
+        val hasAnySubscribed = subscriptions.any { it.isSubscribed }
 
         buildList {
             if (pinned.isNotEmpty()) {
                 add(SubscriptionListItem.Section(R.string.subscriptions_section_pinned))
                 pinned.forEach { add(SubscriptionListItem.SubredditItem(it)) }
             }
-            if (subscribed.isNotEmpty()) {
-                if (pinned.isNotEmpty()) {
-                    add(SubscriptionListItem.Section(R.string.subscriptions_section_subscribed))
-                }
+            if (subscribed.isNotEmpty() || (pinned.isNotEmpty() && hasAnySubscribed && searchQuery.isBlank())) {
+                add(
+                    SubscriptionListItem.Section(
+                        titleRes = R.string.subscriptions_section_subscribed,
+                        showFeedMixAction = hasAnySubscribed
+                    )
+                )
                 subscribed.forEach { add(SubscriptionListItem.SubredditItem(it)) }
             }
         }
@@ -123,6 +136,14 @@ class SubscriptionsViewModel @Inject constructor(
         viewModelScope.launch {
             currentProfile.latest?.let { profile ->
                 repository.unsubscribe(subscription.name, profile.id)
+            }
+        }
+    }
+
+    fun saveHomeFeedWeights(weights: Map<String, Int>) {
+        viewModelScope.launch {
+            currentProfile.latest?.let { profile ->
+                repository.updateSubscriptionHomeWeights(profile.id, weights)
             }
         }
     }

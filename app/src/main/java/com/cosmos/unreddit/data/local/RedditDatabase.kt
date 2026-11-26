@@ -35,7 +35,7 @@ import com.cosmos.unreddit.data.model.db.Subscription
         Multireddit::class,
         MultiredditSubreddit::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -266,6 +266,18 @@ abstract class RedditDatabase : RoomDatabase() {
                     )
                     """.trimIndent())
                 database.execSQL("CREATE INDEX IF NOT EXISTS `index_multireddit_subreddit_multireddit_id` ON `multireddit_subreddit` (`multireddit_id`)")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `subscription` ADD COLUMN `home_weight` INTEGER NOT NULL DEFAULT 100")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE `multireddit_subreddit` ADD COLUMN `weight` INTEGER NOT NULL DEFAULT 100")
             }
         }
     }

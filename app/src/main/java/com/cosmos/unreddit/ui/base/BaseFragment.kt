@@ -16,6 +16,7 @@ import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.db.PostEntity
 import com.cosmos.unreddit.ui.common.widget.RedditView
 import com.cosmos.unreddit.ui.linkmenu.LinkMenuFragment
+import com.cosmos.unreddit.ui.mediamenu.MediaMenuFragment
 import com.cosmos.unreddit.ui.mediaviewer.MediaViewerFragment
 import com.cosmos.unreddit.ui.postdetails.PostDetailsFragment
 import com.cosmos.unreddit.ui.postlist.PostListAdapter
@@ -202,6 +203,10 @@ open class BaseFragment : Fragment(), PostListAdapter.PostClickListener,
 
     override fun onMenuClick(post: PostEntity) {
         PostMenuFragment.show(parentFragmentManager, post)
+    }
+
+    override fun onMediaLongClick(post: PostEntity) {
+        MediaMenuFragment.show(parentFragmentManager, post)
     }
 
     override fun onImageClick(post: PostEntity) {

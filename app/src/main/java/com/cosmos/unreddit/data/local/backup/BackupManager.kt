@@ -104,7 +104,11 @@ sealed class BackupManager(
                     val existing = multiredditDao.getMultiredditByName(targetProfileId, cleanName)
                     if (existing != null) {
                         val merged = existing.subredditNames + multiBackup.subreddits
-                        multiredditDao.replaceSubreddits(existing.multireddit.id, merged)
+                        multiredditDao.replaceSubreddits(
+                            existing.multireddit.id,
+                            merged,
+                            multiBackup.subredditWeights ?: emptyMap()
+                        )
                     } else {
                         val multiId = multiredditDao.insertMultireddit(
                             Multireddit(
@@ -114,7 +118,11 @@ sealed class BackupManager(
                             )
                         ).toInt()
                         if (multiBackup.subreddits.isNotEmpty()) {
-                            multiredditDao.replaceSubreddits(multiId, multiBackup.subreddits)
+                            multiredditDao.replaceSubreddits(
+                                multiId,
+                                multiBackup.subreddits,
+                                multiBackup.subredditWeights ?: emptyMap()
+                            )
                         }
                     }
                 }

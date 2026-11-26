@@ -25,22 +25,45 @@ class SmartPostListDataSource(
     private val query: List<String>,
     private val sorting: Sorting,
     private val defaultDispatcher: CoroutineDispatcher,
-    mainImmediateDispatcher: CoroutineDispatcher
+    mainImmediateDispatcher: CoroutineDispatcher,
+    subredditWeights: Map<String, Int> = emptyMap()
 ) : PagingSource<List<String>, Child>() {
 
     private val scope = CoroutineScope(mainImmediateDispatcher + SupervisorJob())
 
-    private val joinedQuery by lazy { RedditUtil.joinSubredditList(query) }
+    private val normalizedWeights: Map<String, Int> = subredditWeights
+        .mapKeys { it.key.lowercase() }
+
+    private val activeQuery: List<String> = query.filter { sub ->
+        (normalizedWeights[sub.lowercase()] ?: DEFAULT_WEIGHT) > 0
+    }
+
+    private val boostedSubreddits: List<String> = activeQuery.filter { sub ->
+        (normalizedWeights[sub.lowercase()] ?: DEFAULT_WEIGHT) > DEFAULT_WEIGHT
+    }
+
+    private val hasBoostedStreams: Boolean = boostedSubreddits.isNotEmpty() && activeQuery.size > 1
+
+    private val joinedQuery by lazy { RedditUtil.joinSubredditList(activeQuery) }
     private val chunkSize by lazy {
         // Find the optimal chunk size to have lists of similar sizes
-        ceil(query.size / ceil(query.size / REDDIT_SUBREDDIT_LIMIT.toDouble())).toInt()
+        ceil(activeQuery.size / ceil(activeQuery.size / REDDIT_SUBREDDIT_LIMIT.toDouble())).toInt()
     }
+
+    private val throttleAccumulators = mutableMapOf<String, Double>()
 
     override val keyReuseSupported: Boolean = true
 
     override suspend fun load(params: LoadParams<List<String>>): LoadResult<List<String>, Child> {
         return try {
-            if (query.size > REDDIT_SUBREDDIT_LIMIT) getSmartData(params) else getData(params)
+            if (activeQuery.isEmpty()) {
+                return LoadResult.Page(emptyList(), null, null)
+            }
+            if (hasBoostedStreams || activeQuery.size > REDDIT_SUBREDDIT_LIMIT) {
+                getSmartData(params)
+            } else {
+                getData(params)
+            }
         } catch (exception: IOException) {
             LoadResult.Error(exception)
         } catch (exception: HttpException) {
@@ -62,16 +85,26 @@ class SmartPostListDataSource(
         params: LoadParams<List<String>>
     ): LoadResult<List<String>, Child> {
         val queries = withContext(defaultDispatcher) {
-            query
-                // Step 1: Split the subreddit list into chunks
-                .chunked(chunkSize)
-                // Step 2: Create the query string for each chunk
+            val baseChunks = if (activeQuery.size > REDDIT_SUBREDDIT_LIMIT) {
+                activeQuery.chunked(chunkSize)
+            } else {
+                listOf(activeQuery)
+            }
+
+            val allChunks = buildList {
+                addAll(baseChunks)
+                if (hasBoostedStreams) {
+                    // Add a dedicated boosted stream so boosted communities surface prominently
+                    add(boostedSubreddits)
+                }
+            }
+
+            allChunks
                 .map { RedditUtil.joinSubredditList(it) }
-                // Step 3: Map each chunk with its `after` key (if available)
                 .mapIndexed { index, chunkedList -> chunkedList to params.key?.getOrNull(index) }
         }
 
-        // Step 4: Request the posts for each chunk in parallel
+        // Request the posts for each chunk in parallel
         val responses = queries
             .map {
                 scope.async {
@@ -85,16 +118,25 @@ class SmartPostListDataSource(
             }
             .awaitAll()
 
-        // Step 5: Flatten (and sort) the responses in order to have a single list of posts
+        // Flatten, apply weight throttling/boosting, deduplicate, and sort
         val data = withContext(defaultDispatcher) {
-            responses
-                .map { it.data.children }
+            val baseLists = if (hasBoostedStreams && responses.size > 1) {
+                val mainLists = responses.dropLast(1).map { applyWeights(it.data.children, isBoostStream = false) }
+                val boostList = applyWeights(responses.last().data.children, isBoostStream = true)
+                mainLists + listOf(boostList)
+            } else {
+                responses.map { applyWeights(it.data.children, isBoostStream = false) }
+            }
+
+            baseLists
                 .sort(sorting)
+                .deduplicatePosts()
         }
 
-        // Step 6: Retrieve the `after` key for each response and create a list out of them
+        // Retrieve the `after` key for each response and create a list out of them
         val after = withContext(defaultDispatcher) {
-            responses.map { it.data.after ?: "" }
+            val keys = responses.map { it.data.after ?: "" }
+            if (keys.all { it.isBlank() }) null else keys
         }
 
         return LoadResult.Page(data, null, after)
@@ -109,8 +151,56 @@ class SmartPostListDataSource(
         )
 
         val data = response.data
+        val filtered = withContext(defaultDispatcher) {
+            applyWeights(data.children, isBoostStream = false)
+        }
 
-        return LoadResult.Page(data.children, null, data.after?.let { listOf(it) })
+        return LoadResult.Page(filtered, null, data.after?.let { listOf(it) })
+    }
+
+    private fun applyWeights(children: List<Child>, isBoostStream: Boolean): List<Child> {
+        if (normalizedWeights.isEmpty()) return children
+        val result = ArrayList<Child>(children.size)
+        for (child in children) {
+            val post = (child as? PostChild)?.data
+            if (post == null) {
+                result.add(child)
+                continue
+            }
+            val subKey = post.subreddit.lowercase()
+            val weight = normalizedWeights[subKey] ?: DEFAULT_WEIGHT
+            if (weight <= 0) continue
+
+            val ratio = if (isBoostStream) {
+                ((weight - DEFAULT_WEIGHT).coerceAtLeast(0)) / DEFAULT_WEIGHT.toDouble()
+            } else if (weight < DEFAULT_WEIGHT) {
+                weight / DEFAULT_WEIGHT.toDouble()
+            } else {
+                1.0
+            }
+
+            if (ratio >= 1.0) {
+                result.add(child)
+            } else if (ratio > 0.0) {
+                val accKey = if (isBoostStream) "boost:$subKey" else subKey
+                val next = (throttleAccumulators[accKey] ?: 0.5) + ratio
+                if (next >= 1.0) {
+                    throttleAccumulators[accKey] = next - 1.0
+                    result.add(child)
+                } else {
+                    throttleAccumulators[accKey] = next
+                }
+            }
+        }
+        return result
+    }
+
+    private fun List<Child>.deduplicatePosts(): List<Child> {
+        val seenIds = HashSet<String>(size)
+        return filter { child ->
+            val id = (child as? PostChild)?.data?.name ?: return@filter true
+            seenIds.add(id)
+        }
     }
 
     private fun List<List<Child>>.sort(sorting: Sorting): List<Child> {
@@ -127,5 +217,6 @@ class SmartPostListDataSource(
 
     companion object {
         private const val REDDIT_SUBREDDIT_LIMIT = 100
+        private const val DEFAULT_WEIGHT = 100
     }
 }

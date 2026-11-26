@@ -37,7 +37,18 @@ class HideBottomViewBehavior<V: View> @JvmOverloads constructor(
     override fun onLayoutChild(parent: CoordinatorLayout, child: V, layoutDirection: Int): Boolean {
         val paramsCompat = child.layoutParams as ViewGroup.MarginLayoutParams
         width = child.measuredWidth + paramsCompat.rightMargin
-        return super.onLayoutChild(parent, child, layoutDirection)
+        val laidOut = super.onLayoutChild(parent, child, layoutDirection)
+        if (currentAnimator == null) {
+            if (isScrolledUp && child.translationX != 0f) {
+                child.translationX = 0f
+            } else if (isScrolledDown && width > 0) {
+                val targetX = if (leftHandedMode) -width.toFloat() else width.toFloat()
+                if (child.translationX != targetX) {
+                    child.translationX = targetX
+                }
+            }
+        }
+        return laidOut
     }
 
     override fun onStartNestedScroll(
@@ -75,7 +86,7 @@ class HideBottomViewBehavior<V: View> @JvmOverloads constructor(
     }
 
     fun slideIn(child: V, animate: Boolean) {
-        if (isScrolledUp) return
+        if (isScrolledUp && child.translationX == 0f) return
 
         currentAnimator?.let { animator ->
             animator.cancel()
@@ -101,7 +112,8 @@ class HideBottomViewBehavior<V: View> @JvmOverloads constructor(
     }
 
     fun slideOut(child: V, animate: Boolean) {
-        if (isScrolledDown) return
+        val targetTranslationX = if (leftHandedMode) -width else width
+        if (isScrolledDown && child.translationX == targetTranslationX.toFloat()) return
 
         currentAnimator?.let { animator ->
             animator.cancel()
@@ -109,7 +121,6 @@ class HideBottomViewBehavior<V: View> @JvmOverloads constructor(
         }
 
         currentState = STATE_SCROLLED_DOWN
-        val targetTranslationX = if (leftHandedMode) -width else width
         if (animate) {
             animateChildTo(
                 child,

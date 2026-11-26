@@ -415,6 +415,9 @@ class PostDetailsFragment : BaseFragment(),
     }
 
     override fun onDestroyView() {
+        if (isOnlyPostOpen && isRemoving) {
+            showNavigation(true)
+        }
         super.onDestroyView()
         clearSortingListener()
         clearCommentListener()

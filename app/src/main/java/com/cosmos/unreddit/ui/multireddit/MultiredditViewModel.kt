@@ -10,6 +10,7 @@ import com.cosmos.unreddit.data.model.Sort
 import com.cosmos.unreddit.data.model.Sorting
 import com.cosmos.unreddit.data.model.db.MultiredditWithSubreddits
 import com.cosmos.unreddit.data.model.db.PostEntity
+import com.cosmos.unreddit.data.model.db.Subscription
 import com.cosmos.unreddit.data.model.preferences.ContentPreferences
 import com.cosmos.unreddit.data.repository.PostListRepository
 import com.cosmos.unreddit.data.repository.PreferencesRepository
@@ -89,23 +90,30 @@ class MultiredditViewModel @Inject constructor(
         it.contentPreferences
     }
 
-    private val feedQuery: Flow<Pair<List<String>, Sorting>> = combine(
-        multireddit.map { it?.subredditNames ?: emptyList() }.distinctUntilChanged(),
+    private val feedQuery: Flow<Triple<List<String>, Map<String, Int>, Sorting>> = combine(
+        multireddit.map { multi ->
+            val names = multi?.subredditNames ?: emptyList()
+            val weights = multi?.subredditWeights ?: emptyMap()
+            val activeNames = names.filter {
+                (weights[it] ?: Subscription.DEFAULT_HOME_WEIGHT) > 0
+            }
+            activeNames to weights
+        }.distinctUntilChanged(),
         sorting
-    ) { subreddits, sorting ->
-        subreddits to sorting
+    ) { (subreddits, weights), sorting ->
+        Triple(subreddits, weights, sorting)
     }
 
     val postDataFlow: Flow<PagingData<PostEntity>>
 
     init {
         val rawPostDataFlow = feedQuery
-            .flatMapLatest { query ->
-                if (query.first.isEmpty()) {
+            .flatMapLatest { (subreddits, weights, sorting) ->
+                if (subreddits.isEmpty()) {
                     flowOf(PagingData.empty())
                 } else {
                     userData.flatMapLatest { user ->
-                        getPosts(query.first, query.second, user)
+                        getPosts(subreddits, weights, sorting, user)
                     }
                 }
             }
@@ -119,10 +127,11 @@ class MultiredditViewModel @Inject constructor(
 
     private fun getPosts(
         subreddits: List<String>,
+        weights: Map<String, Int>,
         sorting: Sorting,
         user: Data.User
     ): Flow<PagingData<PostEntity>> {
-        return repository.getPosts(subreddits, sorting)
+        return repository.getPosts(subreddits, sorting, subredditWeights = weights)
             .map { pagingData ->
                 PostUtil.filterPosts(pagingData, latestUser ?: user, postMapper, defaultDispatcher)
             }
@@ -150,6 +159,15 @@ class MultiredditViewModel @Inject constructor(
         if (id > 0) {
             viewModelScope.launch {
                 repository.updateMultiredditSubreddits(id, subreddits)
+            }
+        }
+    }
+
+    fun saveSubredditWeights(weights: Map<String, Int>) {
+        val id = _multiredditId.value
+        if (id > 0) {
+            viewModelScope.launch {
+                repository.updateMultiredditSubredditWeights(id, weights)
             }
         }
     }

@@ -12,5 +12,8 @@ data class Multireddit(
     val time: Long = System.currentTimeMillis(),
 
     @Json(name = "subreddits")
-    val subreddits: List<String> = emptyList()
+    val subreddits: List<String> = emptyList(),
+
+    @Json(name = "subreddit_weights")
+    val subredditWeights: Map<String, Int>? = null
 )
