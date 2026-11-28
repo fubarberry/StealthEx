@@ -1,6 +1,10 @@
 package com.cosmos.unreddit.ui.preferences
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.addCallback
@@ -153,6 +157,13 @@ class PreferencesFragment : PreferenceFragmentCompat() {
             }
         }
 
+        findPreference<Preference>("open_reddit_links")?.apply {
+            setOnPreferenceClickListener {
+                openDefaultLinkSettings()
+                true
+            }
+        }
+
         aboutPreference = findPreference<Preference>("about")?.apply {
             setOnPreferenceClickListener {
                 openAbout()
@@ -248,6 +259,22 @@ class PreferencesFragment : PreferenceFragmentCompat() {
 
     private fun openBackup() {
         findNavController().navigate(PreferencesFragmentDirections.openBackup(), navOptions)
+    }
+
+    private fun openDefaultLinkSettings() {
+        val packageUri = Uri.parse("package:${requireContext().packageName}")
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, packageUri)
+        } else {
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+        }
+        runCatching {
+            startActivity(intent)
+        }.onFailure {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri))
+            }
+        }
     }
 
     private fun openAbout() {

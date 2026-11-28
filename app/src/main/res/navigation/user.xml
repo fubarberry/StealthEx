@@ -19,6 +19,24 @@
         <deepLink
             android:id="@+id/deepLinkUserExternal2"
             app:uri=".*.reddit.com/user/{user}/" />
+        <deepLink
+            android:id="@+id/deepLinkUserExternalApex"
+            app:uri="reddit.com/user/{user}" />
+        <deepLink
+            android:id="@+id/deepLinkUserExternalApex2"
+            app:uri="reddit.com/user/{user}/" />
+        <deepLink
+            android:id="@+id/deepLinkUserShortExternal"
+            app:uri=".*.reddit.com/u/{user}" />
+        <deepLink
+            android:id="@+id/deepLinkUserShortExternal2"
+            app:uri=".*.reddit.com/u/{user}/" />
+        <deepLink
+            android:id="@+id/deepLinkUserShortExternalApex"
+            app:uri="reddit.com/u/{user}" />
+        <deepLink
+            android:id="@+id/deepLinkUserShortExternalApex2"
+            app:uri="reddit.com/u/{user}/" />
 
         <argument
             android:name="user"

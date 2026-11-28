@@ -7,6 +7,7 @@ import androidx.core.view.isVisible
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
+import com.cosmos.unreddit.data.model.GalleryMedia
 import com.cosmos.unreddit.data.model.MediaType
 import com.cosmos.unreddit.data.model.PostType
 import com.cosmos.unreddit.data.model.db.PostEntity
@@ -27,6 +28,8 @@ import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.Tracks
 import com.google.android.exoplayer2.source.MergingMediaSource
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
+import com.google.android.exoplayer2.video.VideoSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -272,7 +275,7 @@ class PostListAdapter(
                     val holder = findFullscreenHolderForPost(position, it)
                     if (holder != null) {
                         holder.bind(it, contentPreferences, isVideoMuted, isRevealed = true)
-                        if (it.type == PostType.VIDEO && canPlayInline(it)) {
+                        if (canPlayInline(it)) {
                             isHostPaused = false
                             startInlineVideo(holder, it)
                         }
@@ -329,7 +332,11 @@ class PostListAdapter(
         override fun onFullscreenVideoClick(position: Int) {
             getItem(position)?.let {
                 setPostSeen(position, it)
-                postClickListener.onVideoClick(it)
+                if (it.gallery.isNotEmpty()) {
+                    postClickListener.onImageClick(it)
+                } else {
+                    postClickListener.onVideoClick(it)
+                }
             }
         }
 
@@ -601,7 +608,29 @@ class PostListAdapter(
         }
     }
 
+    private fun isGalleryVideo(post: PostEntity): Boolean {
+        return post.mediaType == MediaType.REDDIT_GALLERY &&
+            post.gallery.firstOrNull()?.let {
+                it.type == GalleryMedia.Type.VIDEO && it.url.isNotBlank()
+            } == true
+    }
+
+    private fun isGifPost(post: PostEntity): Boolean {
+        if (isGalleryVideo(post)) return true
+        if (post.mediaType == MediaType.REDDIT_GIF || post.mediaType == MediaType.IMGUR_GIF) {
+            return true
+        }
+        if (post.mediaType == MediaType.VIDEO) {
+            val lowerUrl = post.mediaUrl.lowercase()
+            if (lowerUrl.endsWith(".gif") || lowerUrl.endsWith(".gifv")) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun canPlayInline(post: PostEntity): Boolean {
+        if (isGalleryVideo(post)) return true
         if (post.type != PostType.VIDEO || post.mediaUrl.isBlank()) return false
         return post.mediaType in PLAYABLE_MEDIA_TYPES
     }
@@ -657,15 +686,26 @@ class PostListAdapter(
         }
 
         stopActiveVideo()
+        val isGallery = isGalleryVideo(post)
+        val isGif = isGifPost(post)
         activeVideoHolder = holder
         holder.inlinePlaybackFailed = false
         holder.binding.loadingCradle.isVisible = true
-        holder.binding.buttonTypeIndicator.isVisible = false
+        holder.binding.buttonTypeIndicator.isVisible = isGallery
+        holder.binding.videoPostPlayer.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        holder.binding.videoPostPlayer.useController = !isGif
+        if (isGif) {
+            holder.binding.videoPostPlayer.hideController()
+        }
         holder.binding.videoPostPlayer.isVisible = true
 
         videoResolveJob = adapterScope.launch {
             val context = holder.binding.root.context.applicationContext
-            val httpsUrl = post.mediaUrl.https
+            val httpsUrl = if (isGallery) {
+                post.gallery.first().url.https
+            } else {
+                post.mediaUrl.https
+            }
             val resolved = withContext(Dispatchers.IO) {
                 when (post.mediaType) {
                     MediaType.IMGUR_GIF -> LinkUtil.getImgurVideo(httpsUrl) to null
@@ -742,6 +782,23 @@ class PostListAdapter(
             }
 
             player.addListener(object : Player.Listener {
+                override fun onVideoSizeChanged(videoSize: VideoSize) {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        applyVideoAspectRatio(holder, videoSize)
+                    }
+                }
+
+                override fun onRenderedFirstFrame() {
+                    if (activeVideoHolder === holder && exoPlayer === player) {
+                        applyVideoAspectRatio(holder, player.videoSize)
+                        holder.binding.videoPostPlayer.post {
+                            if (activeVideoHolder === holder && exoPlayer === player) {
+                                applyVideoAspectRatio(holder, player.videoSize)
+                            }
+                        }
+                    }
+                }
+
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (activeVideoHolder === holder && exoPlayer === player) {
                         updateKeepScreenOn(holder, player)
@@ -758,7 +815,7 @@ class PostListAdapter(
                                 holder.inlinePlaybackFailed = false
                                 holder.binding.loadingCradle.isVisible = false
                                 holder.binding.videoPostPlayer.isVisible = true
-                                holder.binding.buttonTypeIndicator.isVisible = false
+                                holder.binding.buttonTypeIndicator.isVisible = isGallery
                             }
                             else -> {}
                         }
@@ -837,6 +894,33 @@ class PostListAdapter(
         }
     }
 
+    private fun applyVideoAspectRatio(
+        holder: PostViewHolder.FullscreenPostViewHolder,
+        videoSize: VideoSize
+    ) {
+        if (videoSize.width <= 0 || videoSize.height <= 0) return
+        val swapped = videoSize.unappliedRotationDegrees == 90 ||
+            videoSize.unappliedRotationDegrees == 270
+        val width = if (swapped) videoSize.height else videoSize.width
+        val height = if (swapped) videoSize.width else videoSize.height
+        val ratio = (width * videoSize.pixelWidthHeightRatio) / height.toFloat()
+        if (ratio <= 0f || ratio.isNaN() || ratio.isInfinite()) return
+        holder.binding.videoPostPlayer.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        if (videoSize.unappliedRotationDegrees == 0) {
+            (holder.binding.videoPostPlayer.videoSurfaceView as? android.view.TextureView)
+                ?.setTransform(null)
+        }
+        holder.binding.videoPostPlayer.findViewById<AspectRatioFrameLayout>(
+            com.google.android.exoplayer2.ui.R.id.exo_content_frame
+        )?.let { contentFrame ->
+            contentFrame.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            contentFrame.setAspectRatio(0f)
+            contentFrame.setAspectRatio(ratio)
+            contentFrame.requestLayout()
+        }
+        holder.binding.videoPostPlayer.requestLayout()
+    }
+
     private fun updateKeepScreenOn(
         holder: PostViewHolder.FullscreenPostViewHolder,
         player: ExoPlayer
@@ -855,7 +939,14 @@ class PostListAdapter(
             holder.binding.videoPostPlayer.isVisible = false
             holder.binding.loadingCradle.isVisible = false
             holder.binding.buttonMute.isVisible = false
-            holder.binding.buttonTypeIndicator.isVisible = holder.boundPost?.type == PostType.VIDEO
+            val bound = holder.boundPost
+            holder.binding.buttonTypeIndicator.isVisible =
+                bound?.type == PostType.VIDEO ||
+                bound?.mediaType in setOf(
+                    MediaType.REDDIT_GALLERY,
+                    MediaType.IMGUR_ALBUM,
+                    MediaType.IMGUR_GALLERY
+                )
         }
         activeVideoHolder = null
         exoPlayer?.stop()

@@ -353,4 +353,8 @@
     <string name="webview_verify_title">Verify in Browser</string>
     <string name="webview_verify_done">Done</string>
     <string name="menu_verify_webview">Verify in Browser</string>
+
+    <string name="preference_open_reddit_links">Open Reddit links</string>
+    <string name="preference_open_reddit_links_summary">Set StealthEx as default for Reddit links</string>
+    <string name="toast_no_reddit_link_found">No Reddit link found</string>
 </resources>

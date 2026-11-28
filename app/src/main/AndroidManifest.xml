@@ -20,12 +20,38 @@
         <activity
             android:name=".MainActivity"
             android:theme="@style/AppTheme.Launcher"
+            android:launchMode="singleTop"
             android:exported="true">
             <nav-graph android:value="@navigation/navigation_graph"/>
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="reddit.com" />
+                <data android:host="www.reddit.com" />
+                <data android:host="old.reddit.com" />
+                <data android:host="m.reddit.com" />
+                <data android:host="np.reddit.com" />
+                <data android:host="*.reddit.com" />
+                <data android:pathPattern="/r/.*/s/.*" />
+                <data android:pathPattern="/u/.*/s/.*" />
+                <data android:pathPattern="/user/.*/s/.*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

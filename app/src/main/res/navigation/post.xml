@@ -18,6 +18,14 @@
             app:uri=".*.reddit.com/{type}/{name}/comments/{id}/"/>
 
         <deepLink
+            android:id="@+id/deepLinkPostApex"
+            app:uri="reddit.com/{type}/{name}/comments/{id}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkPostApex2"
+            app:uri="reddit.com/{type}/{name}/comments/{id}/"/>
+
+        <deepLink
             android:id="@+id/deepLinkPostTitle"
             app:uri=".*.reddit.com/{type}/{name}/comments/{id}/{title}"/>
 
@@ -26,12 +34,76 @@
             app:uri=".*.reddit.com/{type}/{name}/comments/{id}/{title}/"/>
 
         <deepLink
+            android:id="@+id/deepLinkPostTitleApex"
+            app:uri="reddit.com/{type}/{name}/comments/{id}/{title}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkPostTitleApex2"
+            app:uri="reddit.com/{type}/{name}/comments/{id}/{title}/"/>
+
+        <deepLink
             android:id="@+id/deepLinkPostThread"
             app:uri=".*.reddit.com/{type}/{name}/comments/{id}/{title}/{comment}"/>
 
         <deepLink
             android:id="@+id/deepLinkPostThread2"
             app:uri=".*.reddit.com/{type}/{name}/comments/{id}/{title}/{comment}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkPostThreadApex"
+            app:uri="reddit.com/{type}/{name}/comments/{id}/{title}/{comment}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkPostThreadApex2"
+            app:uri="reddit.com/{type}/{name}/comments/{id}/{title}/{comment}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirect"
+            app:uri=".*.reddit.com/comments/{id}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirect2"
+            app:uri=".*.reddit.com/comments/{id}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectApex"
+            app:uri="reddit.com/comments/{id}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectApex2"
+            app:uri="reddit.com/comments/{id}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectTitle"
+            app:uri=".*.reddit.com/comments/{id}/{title}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectTitle2"
+            app:uri=".*.reddit.com/comments/{id}/{title}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectTitleApex"
+            app:uri="reddit.com/comments/{id}/{title}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectTitleApex2"
+            app:uri="reddit.com/comments/{id}/{title}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectThread"
+            app:uri=".*.reddit.com/comments/{id}/{title}/{comment}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectThread2"
+            app:uri=".*.reddit.com/comments/{id}/{title}/{comment}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectThreadApex"
+            app:uri="reddit.com/comments/{id}/{title}/{comment}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkCommentsDirectThreadApex2"
+            app:uri="reddit.com/comments/{id}/{title}/{comment}/"/>
 
         <deepLink
             android:id="@+id/deepLinkShort"
@@ -48,6 +120,14 @@
         <deepLink
             android:id="@+id/deepLinkGallery2"
             app:uri=".*.reddit.com/gallery/{id}/"/>
+
+        <deepLink
+            android:id="@+id/deepLinkGalleryApex"
+            app:uri="reddit.com/gallery/{id}"/>
+
+        <deepLink
+            android:id="@+id/deepLinkGalleryApex2"
+            app:uri="reddit.com/gallery/{id}/"/>
 
         <argument
             android:name="type"

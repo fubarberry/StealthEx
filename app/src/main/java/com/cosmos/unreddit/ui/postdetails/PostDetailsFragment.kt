@@ -286,8 +286,13 @@ class PostDetailsFragment : BaseFragment(),
 
                 stringBuilder.toString()
             } else {
-                // Shortened URL
-                args.id!!
+                // Shortened URL (/comments/{id}, redd.it/{id}, /gallery/{id})
+                val stringBuilder = StringBuilder("/comments/").append(args.id)
+                if (args.title != null && args.comment != null) {
+                    stringBuilder.append("/").append(args.title).append("/").append(args.comment)
+                    viewModel.setSingleThread(true)
+                }
+                stringBuilder.toString()
             }
 
             viewModel.setPermalink(permalink)

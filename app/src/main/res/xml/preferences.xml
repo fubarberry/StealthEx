@@ -65,6 +65,12 @@
         app:title="@string/preference_category_misc">
 
         <Preference
+            app:key="open_reddit_links"
+            app:title="@string/preference_open_reddit_links"
+            app:summary="@string/preference_open_reddit_links_summary"
+            app:persistent="false"/>
+
+        <Preference
             app:key="about"
             app:title="@string/preference_about"
             app:persistent="false"/>

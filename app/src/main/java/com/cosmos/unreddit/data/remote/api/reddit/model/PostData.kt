@@ -136,6 +136,8 @@ data class PostData(
             isSelf -> MediaType.NO_MEDIA
             isRedditGallery == true -> MediaType.REDDIT_GALLERY
             domain.endsWith("streamable.com") -> MediaType.STREAMABLE
+            domain.endsWith("redgifs.com", ignoreCase = true) ||
+                    url.contains("redgifs.com", ignoreCase = true) -> MediaType.REDGIFS
 
             isVideo -> {
                 if (media?.redditVideoPreview?.isGif == true && media.redditVideoPreview.hasAudio != true) {
@@ -186,7 +188,6 @@ data class PostData(
             }
 
             domain.endsWith("gfycat.com") -> MediaType.GFYCAT
-            domain.endsWith("redgifs.com") -> MediaType.REDGIFS
 
             domain == "i.redd.it" -> MediaType.IMAGE
             hint?.contains("image") == true -> MediaType.IMAGE
@@ -207,6 +208,10 @@ data class PostData(
                     ?: mediaPreview?.videoPreview?.fallbackUrl
                     ?: redgifsDirectVideoUrl
                     ?: mediaPreview?.images?.getOrNull(0)?.variants?.mp4?.imageSource?.url
+            }
+
+            MediaType.REDGIFS -> {
+                crossposts?.firstOrNull()?.mediaUrl ?: url
             }
 
             MediaType.IMGUR_LINK -> {
@@ -258,11 +263,18 @@ data class PostData(
             }
         } ?: emptyList()
 
+    private fun firstOrderedGalleryItem(): GalleryItem? =
+        galleryData?.items?.firstOrNull()?.let { first ->
+            mediaMetadata?.items?.find { it.id == first.mediaId }
+        }
+
     val previewUrl: String?
         get() = mediaPreview?.images?.getOrNull(0)?.imageSource?.url
             ?: gallery.firstOrNull()?.url?.takeUnless {
                 it.mimeType.run { contains("gif") || contains("video") }
             }
+            ?: firstOrderedGalleryItem()?.image?.url
+            ?: firstOrderedGalleryItem()?.previews?.lastOrNull { !it.url.isNullOrBlank() }?.url
             ?: mediaMetadata?.items?.getOrNull(0)?.image?.url
             ?: mediaMetadata?.items?.getOrNull(0)?.previews?.lastOrNull()?.url
             // Keep URL only if it's an image

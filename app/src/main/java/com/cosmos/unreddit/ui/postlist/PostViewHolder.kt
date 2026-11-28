@@ -608,7 +608,7 @@ abstract class PostViewHolder(
                 true
             }
             var handledVideoLongPress = false
-            val videoLongPressDetector = android.view.GestureDetector(
+            val videoGestureDetector = android.view.GestureDetector(
                 binding.videoPostPlayer.context,
                 object : android.view.GestureDetector.SimpleOnGestureListener() {
                     override fun onLongPress(e: android.view.MotionEvent) {
@@ -618,14 +618,24 @@ abstract class PostViewHolder(
                         )
                         listener.onMediaLongClick(bindingAdapterPosition)
                     }
+
+                    override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                        if (!binding.videoPostPlayer.useController) {
+                            listener.onFullscreenVideoClick(bindingAdapterPosition)
+                            return true
+                        }
+                        return false
+                    }
                 }
             )
             binding.videoPostPlayer.setOnTouchListener { _, event ->
                 if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
                     handledVideoLongPress = false
                 }
-                videoLongPressDetector.onTouchEvent(event)
-                if (handledVideoLongPress &&
+                videoGestureDetector.onTouchEvent(event)
+                if (!binding.videoPostPlayer.useController) {
+                    true
+                } else if (handledVideoLongPress &&
                     (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
                         event.actionMasked == android.view.MotionEvent.ACTION_CANCEL)
                 ) {
@@ -794,7 +804,6 @@ abstract class PostViewHolder(
                         binding.tweetCardContainer.isVisible = false
                         binding.imagePostPreview.isVisible = true
                         binding.imagePostPreview.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                        binding.includePostInfo.textDomain.visibility = View.VISIBLE
                         binding.imagePostPreview.load(postEntity.preview, !showPreview) {
                             scale(Scale.FIT)
                             precision(Precision.INEXACT)

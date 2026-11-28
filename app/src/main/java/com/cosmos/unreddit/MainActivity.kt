@@ -1,8 +1,11 @@
 package com.cosmos.unreddit
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -11,6 +14,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.fragment.NavHostFragment
@@ -21,6 +25,7 @@ import com.cosmos.unreddit.MainActivity.BottomNavigationState.RIGHT_HANDED
 import com.cosmos.unreddit.databinding.ActivityMainBinding
 import com.cosmos.unreddit.ui.postlist.PostListFragment
 import com.cosmos.unreddit.util.HideBottomViewBehavior
+import com.cosmos.unreddit.util.LinkUtil
 import com.cosmos.unreddit.util.extension.clearWindowInsetsListener
 import com.cosmos.unreddit.util.extension.currentNavigationFragment
 import com.cosmos.unreddit.util.extension.launchRepeat
@@ -29,7 +34,11 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.shape.CornerFamily
 import com.google.android.material.shape.MaterialShapeDrawable
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedListener {
@@ -52,6 +61,12 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
         setContentView(binding.root)
 
         initNavigation()
+
+        if (savedInstanceState == null && intent != null) {
+            if (!handleSharedTextIntent(intent)) {
+                handleRedditShareIntent(intent)
+            }
+        }
 
         launchRepeat(Lifecycle.State.STARTED) {
             launch {
@@ -216,6 +231,102 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
         }
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent != null) {
+            setIntent(intent)
+            if (!handleSharedTextIntent(intent) &&
+                !handleRedditShareIntent(intent) &&
+                intent.action == Intent.ACTION_VIEW &&
+                intent.data != null
+            ) {
+                navController.handleDeepLink(intent)
+            }
+        }
+    }
+
+    private fun handleSharedTextIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_SEND || intent.type != "text/plain") return false
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return false
+        val extractedUrl = extractRedditUrl(sharedText)
+        if (extractedUrl == null) {
+            Toast.makeText(this, R.string.toast_no_reddit_link_found, Toast.LENGTH_SHORT).show()
+            return true
+        }
+        val viewIntent = Intent(Intent.ACTION_VIEW, Uri.parse(extractedUrl))
+        if (!handleRedditShareIntent(viewIntent)) {
+            if (!navController.handleDeepLink(viewIntent)) {
+                Toast.makeText(this, R.string.toast_no_reddit_link_found, Toast.LENGTH_SHORT).show()
+            }
+        }
+        return true
+    }
+
+    private fun extractRedditUrl(text: String): String? {
+        val match = REDDIT_URL_REGEX.find(text) ?: return null
+        val raw = match.value.trimEnd('.', ',', ')', ']', '>', '"', '\'')
+        return if (raw.startsWith("http://", ignoreCase = true) ||
+            raw.startsWith("https://", ignoreCase = true)
+        ) {
+            raw
+        } else {
+            "https://$raw"
+        }
+    }
+
+    private fun handleRedditShareIntent(intent: Intent): Boolean {
+        if (intent.action != Intent.ACTION_VIEW) return false
+        val uri = intent.data ?: return false
+        val host = uri.host?.lowercase() ?: return false
+        if (host != "reddit.com" && !host.endsWith(".reddit.com")) return false
+        val segments = uri.pathSegments
+        val isShareLink = segments.size >= 4 &&
+            segments[2].equals("s", ignoreCase = true) &&
+            (segments[0].equals("r", ignoreCase = true) ||
+                segments[0].equals("u", ignoreCase = true) ||
+                segments[0].equals("user", ignoreCase = true))
+        if (!isShareLink) return false
+
+        lifecycleScope.launch {
+            val resolvedUrl = withContext(Dispatchers.IO) {
+                resolveRedirectUrl(uri.toString())
+            }
+            if (resolvedUrl != null && !isFinishing && !isDestroyed) {
+                val resolvedIntent = Intent(Intent.ACTION_VIEW, Uri.parse(resolvedUrl))
+                navController.handleDeepLink(resolvedIntent)
+            }
+        }
+        return true
+    }
+
+    private fun resolveRedirectUrl(url: String): String? {
+        val client = OkHttpClient.Builder()
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+        return runCatching {
+            val headReq = Request.Builder()
+                .url(url)
+                .head()
+                .header("User-Agent", LinkUtil.USER_AGENT)
+                .build()
+            client.newCall(headReq).execute().use { response ->
+                val finalUrl = response.request.url.toString()
+                if (finalUrl != url && !finalUrl.contains("/s/")) {
+                    return@runCatching finalUrl
+                }
+            }
+            val getReq = Request.Builder()
+                .url(url)
+                .get()
+                .header("User-Agent", LinkUtil.USER_AGENT)
+                .build()
+            client.newCall(getReq).execute().use { response ->
+                response.request.url.toString().takeIf { it != url }
+            }
+        }.getOrNull()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         bottomNavigationState = NOT_INITIALIZED
@@ -223,5 +334,12 @@ class MainActivity : AppCompatActivity(), NavController.OnDestinationChangedList
 
     private enum class BottomNavigationState {
         NOT_INITIALIZED, RIGHT_HANDED, LEFT_HANDED
+    }
+
+    companion object {
+        private val REDDIT_URL_REGEX = Regex(
+            "(?:https?://)?(?:[a-zA-Z0-9-]+\\.)?(?:reddit\\.com|redd\\.it)/[^\\s]+",
+            RegexOption.IGNORE_CASE
+        )
     }
 }

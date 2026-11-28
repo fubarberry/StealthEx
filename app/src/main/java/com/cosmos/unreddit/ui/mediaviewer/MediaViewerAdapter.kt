@@ -6,12 +6,14 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.updateLayoutParams
 import androidx.recyclerview.widget.RecyclerView
 import coil.Coil
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
 import coil.size.Scale
+import com.cosmos.unreddit.R
 import com.cosmos.unreddit.data.model.GalleryMedia
 import com.cosmos.unreddit.databinding.ItemImageBinding
 import com.cosmos.unreddit.databinding.ItemVideoBinding
@@ -262,9 +264,24 @@ class MediaViewerAdapter(
             releasePlayer()
             boundVideo = video
             binding.infoRetry.hide()
+            updateControlsBottomMargin()
             if (bindingAdapterPosition == activePosition) {
                 ensurePlaying()
             }
+        }
+
+        private fun updateControlsBottomMargin() {
+            val resources = binding.video.resources
+            val baseMargin = resources.getDimensionPixelSize(R.dimen.media_button_margin)
+            val bottomMargin = if (media.size > 1) {
+                resources.getDimensionPixelSize(R.dimen.media_thumbnail_size) + baseMargin * 2
+            } else {
+                baseMargin
+            }
+            binding.video.findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_progress)
+                ?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                    this.bottomMargin = bottomMargin
+                }
         }
 
         fun ensurePlaying() {
